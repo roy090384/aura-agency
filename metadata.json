@@ -1,0 +1,6 @@
+{
+  "name": "AURA | Women's Football Agency",
+  "description": "Comprehensive management platform for female football players, contract expiration alerts, and local and international scouting talk pipeline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

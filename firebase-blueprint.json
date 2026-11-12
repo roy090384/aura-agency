@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "Player": {
+      "title": "Player",
+      "description": "Represents a female footballer represented by the agency.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "photoUrl": { "type": "string", "maxLength": 2048 },
+        "age": { "type": "number" },
+        "birthDate": { "type": "string", "maxLength": 32 },
+        "nationality": { "type": "string", "maxLength": 64 },
+        "countryCode": { "type": "string", "maxLength": 8 },
+        "clubName": { "type": "string", "maxLength": 128 },
+        "league": { "type": "string", "maxLength": 128 },
+        "position": { "type": "string", "maxLength": 64 },
+        "secondaryPosition": { "type": "string", "maxLength": 64 },
+        "jerseyNumber": { "type": "number" },
+        "dominantFoot": { "type": "string", "maxLength": 16 },
+        "youthCategory": { "type": "string", "maxLength": 16 },
+        "contractStartDate": { "type": "string", "maxLength": 32 },
+        "contractExpiryDate": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "maxLength": 32 },
+        "marketValue": { "type": "string", "maxLength": 64 },
+        "agencyFeePct": { "type": "number" },
+        "representationType": { "type": "string", "maxLength": 32 },
+        "contactEmail": { "type": "string", "maxLength": 128 },
+        "contactPhone": { "type": "string", "maxLength": 32 },
+        "notes": { "type": "string", "maxLength": 4096 },
+        "videoHighlightsUrl": { "type": "string", "maxLength": 2048 },
+        "goals": { "type": "number" },
+        "assists": { "type": "number" },
+        "goalInvolvementTarget": { "type": "number" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "clubName", "position", "contractExpiryDate", "status", "userId"]
+    },
+    "TalkProspect": {
+      "title": "TalkProspect",
+      "description": "Represents an active scouting or recruitment discussion candidate.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "photoUrl": { "type": "string", "maxLength": 2048 },
+        "age": { "type": "number" },
+        "birthDate": { "type": "string", "maxLength": 32 },
+        "nationality": { "type": "string", "maxLength": 64 },
+        "countryCode": { "type": "string", "maxLength": 8 },
+        "currentClub": { "type": "string", "maxLength": 128 },
+        "league": { "type": "string", "maxLength": 128 },
+        "position": { "type": "string", "maxLength": 64 },
+        "youthCategory": { "type": "string", "maxLength": 16 },
+        "scope": { "type": "string", "maxLength": 32 },
+        "talkStage": { "type": "string", "maxLength": 32 },
+        "priority": { "type": "string", "maxLength": 16 },
+        "assignedAgent": { "type": "string", "maxLength": 128 },
+        "videoUrl": { "type": "string", "maxLength": 2048 },
+        "videoTitle": { "type": "string", "maxLength": 128 },
+        "videoDescription": { "type": "string", "maxLength": 2048 },
+        "targetSalaryAmount": { "type": "number" },
+        "targetSalaryCurrency": { "type": "string", "maxLength": 8 },
+        "targetSalaryPeriod": { "type": "string", "maxLength": 16 },
+        "generalNotes": { "type": "string", "maxLength": 4096 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "currentClub", "position", "scope", "talkStage", "priority", "userId"]
+    },
+    "TrackedPlayer": {
+      "title": "TrackedPlayer",
+      "description": "Represents a player in the Player Tracker tool for monitoring minutes, percentage, and goal involvement targets.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "photoUrl": { "type": "string", "maxLength": 2048 },
+        "gender": { "type": "string", "maxLength": 16 },
+        "category": { "type": "string", "maxLength": 16 },
+        "age": { "type": "number" },
+        "clubName": { "type": "string", "maxLength": 128 },
+        "league": { "type": "string", "maxLength": 128 },
+        "position": { "type": "string", "maxLength": 64 },
+        "jerseyNumber": { "type": "number" },
+        "matchesEligible": { "type": "number" },
+        "matchesPlayed": { "type": "number" },
+        "minutesPlayed": { "type": "number" },
+        "goals": { "type": "number" },
+        "assists": { "type": "number" },
+        "goalInvolvementTarget": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 4096 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "gender", "category", "clubName", "matchesEligible", "matchesPlayed", "minutesPlayed", "goals", "assists", "userId"]
+    },
+    "AgencyPreferences": {
+      "title": "AgencyPreferences",
+      "description": "User agency preferences for currency, language, and theme.",
+      "type": "object",
+      "properties": {
+        "currency": { "type": "string", "maxLength": 8 },
+        "language": { "type": "string", "maxLength": 8 },
+        "isDarkMode": { "type": "boolean" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["currency", "language", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Agency roster players belonging to an authenticated user."
+    },
+    "/users/{userId}/prospects/{prospectId}": {
+      "schema": { "$ref": "#/entities/TalkProspect" },
+      "description": "Recruitment and scouting talk prospects belonging to an authenticated user."
+    },
+    "/users/{userId}/trackedPlayers/{trackedPlayerId}": {
+      "schema": { "$ref": "#/entities/TrackedPlayer" },
+      "description": "Match minutes, percentages, and goal involvement tracker players belonging to an authenticated user."
+    },
+    "/users/{userId}/settings/preferences": {
+      "schema": { "$ref": "#/entities/AgencyPreferences" },
+      "description": "Personalized agency configuration and display preferences."
+    }
+  }
+}

@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny-all catch-all rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Connectivity test document
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // User data trees
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // Agency represented players
+      match /players/{playerId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) 
+          && isValidId(playerId)
+          && request.resource.data.userId == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 128;
+      }
+
+      // "In Talk With" scouting prospects
+      match /prospects/{prospectId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidId(prospectId)
+          && request.resource.data.userId == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 128;
+      }
+
+      // Match minutes & goal involvement tracked players
+      match /trackedPlayers/{trackedPlayerId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidId(trackedPlayerId)
+          && request.resource.data.userId == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 128;
+      }
+
+      // User preferences (currency, language, theme)
+      match /settings/preferences {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.userId == userId;
+      }
+    }
+  }
+}
