@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { TalkProspect, ProspectScope, TalkStage, PlayerPosition, YouthCategory, Language, Currency, SalaryPeriod } from '../types/player';
+import { TalkProspect, ProspectScope, TalkStage, PlayerPosition, YouthCategory, Language, Currency } from '../types/player';
 import { TRANSLATIONS, getYouthBadgeColor } from '../translations/translations';
-import { CURRENCY_SYMBOLS, convertCurrency, formatSalary } from '../utils/currency';
-import { X, Video, Globe, MapPin, Sparkles, Plus, Tag, Coins } from 'lucide-react';
+import { X, Video, Globe, MapPin, Sparkles, Plus, Tag, UserCheck } from 'lucide-react';
 import { NationalitySelect } from './NationalitySelect';
 
 interface ProspectModalProps {
@@ -43,10 +42,8 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
   onClose,
   onSave,
   prospectToEdit,
-  language = 'en',
-  defaultCurrency = 'EUR'
+  language = 'en'
 }) => {
-  const t = TRANSLATIONS[language];
   const [name, setName] = useState('');
   const [age, setAge] = useState<number>(18);
   const [birthDate, setBirthDate] = useState('2008-01-01');
@@ -61,20 +58,15 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
   const [priority, setPriority] = useState<'High' | 'Medium' | 'Low'>('High');
   const [assignedAgent, setAssignedAgent] = useState('Marcus Sterling (Senior Agent)');
 
-  // Target Salary & Compensation
-  const [targetSalaryAmount, setTargetSalaryAmount] = useState<number>(2500);
-  const [targetSalaryCurrency, setTargetSalaryCurrency] = useState<Currency>(defaultCurrency);
-  const [targetSalaryPeriod, setTargetSalaryPeriod] = useState<SalaryPeriod>('Weekly');
-
-  // Video info
-  const [videoUrl, setVideoUrl] = useState('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
-  const [videoTitle, setVideoTitle] = useState('Tactical Match Compilation & Skills');
-  const [videoDescription, setVideoDescription] = useState('Full game scout review, press resistance, and progressive forward passes.');
+  // Video info (Optional)
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
 
   // Scouting report
   const [strengthsText, setStrengthsText] = useState('Vision & Passing, Pace in Transition, Physical Stamina');
   const [areasToImproveText, setAreasToImproveText] = useState('Aerial Duels, Weak-foot consistency');
-  const [tacticalFit, setTacticalFit] = useState('Modern dynamic playmaker suited for high-tempo attacking team.');
+  const [tacticalFit, setTacticalFit] = useState('Dynamic playmaker suited for high-tempo attacking team with high agency potential.');
   const [dominantFoot, setDominantFoot] = useState<'Right' | 'Left' | 'Both'>('Right');
   const [heightCm, setHeightCm] = useState<number>(170);
   const [internationalCaps, setInternationalCaps] = useState<number>(4);
@@ -95,22 +87,17 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       setTalkStage(prospectToEdit.talkStage);
       setPriority(prospectToEdit.priority);
       setAssignedAgent(prospectToEdit.assignedAgent);
-      
-      // Target salary loading
-      setTargetSalaryAmount(prospectToEdit.targetSalaryAmount || 2500);
-      setTargetSalaryCurrency(prospectToEdit.targetSalaryCurrency || defaultCurrency);
-      setTargetSalaryPeriod(prospectToEdit.targetSalaryPeriod || 'Weekly');
 
-      setVideoUrl(prospectToEdit.videoUrl);
-      setVideoTitle(prospectToEdit.videoTitle);
+      setVideoUrl(prospectToEdit.videoUrl || '');
+      setVideoTitle(prospectToEdit.videoTitle || '');
       setVideoDescription(prospectToEdit.videoDescription || '');
-      setStrengthsText(prospectToEdit.scoutingReport.strengths.join(', '));
-      setAreasToImproveText(prospectToEdit.scoutingReport.areasToImprove.join(', '));
-      setTacticalFit(prospectToEdit.scoutingReport.tacticalFit);
-      setDominantFoot(prospectToEdit.scoutingReport.dominantFoot);
-      setHeightCm(prospectToEdit.scoutingReport.heightCm);
-      setInternationalCaps(prospectToEdit.scoutingReport.internationalCaps);
-      setGeneralNotes(prospectToEdit.generalNotes);
+      setStrengthsText(prospectToEdit.scoutingReport?.strengths?.join(', ') || '');
+      setAreasToImproveText(prospectToEdit.scoutingReport?.areasToImprove?.join(', ') || '');
+      setTacticalFit(prospectToEdit.scoutingReport?.tacticalFit || '');
+      setDominantFoot(prospectToEdit.scoutingReport?.dominantFoot || 'Right');
+      setHeightCm(prospectToEdit.scoutingReport?.heightCm || 170);
+      setInternationalCaps(prospectToEdit.scoutingReport?.internationalCaps || 0);
+      setGeneralNotes(prospectToEdit.generalNotes || '');
     } else {
       setName('');
       setAge(18);
@@ -125,21 +112,18 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       setTalkStage('Initial Contact');
       setPriority('High');
       setAssignedAgent('Marcus Sterling (Senior Agent)');
-      setTargetSalaryAmount(2500);
-      setTargetSalaryCurrency(defaultCurrency);
-      setTargetSalaryPeriod('Weekly');
-      setVideoUrl('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
-      setVideoTitle('Scouting Highlight Reel');
-      setVideoDescription('High-tempo game footage and technical attributes analysis.');
+      setVideoUrl('');
+      setVideoTitle('');
+      setVideoDescription('');
       setStrengthsText('Pace, Ball Control, Tactical Awareness');
       setAreasToImproveText('Aerial Strength');
-      setTacticalFit('Versatile attacker with explosive counter-pressing capability.');
+      setTacticalFit('Versatile candidate with outstanding commercial and sporting representation potential.');
       setDominantFoot('Right');
       setHeightCm(170);
-      setInternationalCaps(4);
+      setInternationalCaps(0);
       setGeneralNotes('');
     }
-  }, [prospectToEdit, isOpen, defaultCurrency]);
+  }, [prospectToEdit, isOpen]);
 
   if (!isOpen) return null;
 
@@ -160,14 +144,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       .map(s => s.trim())
       .filter(Boolean);
 
-    const formattedWage = formatSalary(
-      targetSalaryAmount,
-      targetSalaryCurrency,
-      targetSalaryCurrency,
-      targetSalaryPeriod,
-      language
-    );
-
+    const trimmedVideo = videoUrl.trim();
     const savedProspect: TalkProspect = {
       id: prospectToEdit ? prospectToEdit.id : `pros-${Date.now()}`,
       name: name.trim(),
@@ -184,11 +161,8 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       talkStage,
       priority,
       assignedAgent: assignedAgent.trim() || 'Marcus Sterling',
-      targetSalaryAmount: Number(targetSalaryAmount) || 0,
-      targetSalaryCurrency,
-      targetSalaryPeriod,
-      videoUrl: videoUrl.trim() || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      videoTitle: videoTitle.trim() || `${name.trim()} - Tactical Video Reel`,
+      videoUrl: trimmedVideo,
+      videoTitle: videoTitle.trim() || (trimmedVideo ? `${name.trim()} - Video Highlights` : ''),
       videoDescription: videoDescription.trim(),
       scoutingReport: {
         strengths: strengths.length ? strengths : ['Technical quality', 'Pace'],
@@ -197,15 +171,15 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
         dominantFoot,
         heightCm: Number(heightCm) || 170,
         internationalCaps: Number(internationalCaps) || 0,
-        estimatedWageWeekly: formattedWage
+        estimatedWageWeekly: ''
       },
       conversationHistory: prospectToEdit?.conversationHistory || [
         {
           id: `c-${Date.now()}`,
           date: new Date().toISOString().split('T')[0],
           channel: 'In-Person',
-          summary: 'Logged initial scouting dossier and scheduled introductory conversation.',
-          nextAction: 'Review full match video and contact player advisor.',
+          summary: 'Logged initial scouting dossier and scheduled introductory representation meeting.',
+          nextAction: 'Review player profile and establish contact with agency leadership.',
           loggedBy: assignedAgent.split(' ')[0] || 'Agent'
         }
       ],
@@ -217,11 +191,6 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
     onClose();
   };
 
-  // Converted salary previews in other currencies
-  const inEur = convertCurrency(targetSalaryAmount, targetSalaryCurrency, 'EUR');
-  const inUsd = convertCurrency(targetSalaryAmount, targetSalaryCurrency, 'USD');
-  const inIls = convertCurrency(targetSalaryAmount, targetSalaryCurrency, 'ILS');
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 my-8 overflow-hidden">
@@ -231,14 +200,18 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                {prospectToEdit ? 'Edit Talk Candidate Dossier' : 'Add New Candidate to "In Talk With"'}
+                {prospectToEdit 
+                  ? (language === 'he' ? 'עריכת מועמדת לייצוג בסוכנות' : 'Edit Agency Candidate Dossier')
+                  : (language === 'he' ? 'הוספת מועמדת חדשה לייצוג בסוכנות' : 'Add New Candidate for Agency Representation')}
               </h2>
               <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-semibold">
-                Recruitment
+                {language === 'he' ? 'מועמדת לייצוג' : 'Agency Candidate'}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Track local and international player discussions, video reels, target salary, and age categories.
+              {language === 'he'
+                ? 'ניהול מועמדות לייצוג בסוכנות AURA, סקאוטינג, סרטוני ביצועים אופציונליים ושלבי החתמה בסוכנות.'
+                : 'Track prospective representation candidates for AURA Agency, scouting reports, optional video reels, and agency signing stages.'}
             </p>
           </div>
           <button
@@ -257,10 +230,12 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
           <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-xs font-bold text-slate-800 dark:text-white block">
-                Recruitment Territory Scope
+                {language === 'he' ? 'היקף טריטוריאלי לייצוג' : 'Representation Territory Scope'}
               </span>
               <span className="text-[11px] text-slate-500">
-                Categorize whether this is local domestic talent or an international scout target
+                {language === 'he'
+                  ? 'סיווג כישרון ישראלי מקומי או יעד סקאוטינג וייצוג בינלאומי'
+                  : 'Categorize whether this is local domestic talent or an international scout target for agency representation'}
               </span>
             </div>
 
@@ -275,7 +250,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 }`}
               >
                 <MapPin className="w-3.5 h-3.5" />
-                <span>Local Prospect</span>
+                <span>{language === 'he' ? 'מועמדת מקומית' : 'Local Candidate'}</span>
               </button>
 
               <button
@@ -288,7 +263,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 }`}
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>International Target</span>
+                <span>{language === 'he' ? 'מועמדת בינלאומית' : 'International Candidate'}</span>
               </button>
             </div>
           </div>
@@ -412,7 +387,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Talk Negotiation Stage *
+                  {language === 'he' ? 'שלב בשיחות הייצוג *' : 'Agency Representation Stage *'}
                 </label>
                 <select
                   value={talkStage}
@@ -420,14 +395,18 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                   className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                 >
                   {STAGES.map(st => (
-                    <option key={st} value={st}>{st}</option>
+                    <option key={st} value={st}>
+                      {st === 'Signed'
+                        ? (language === 'he' ? 'נחתמה בסוכנות (העברה אוטומטית לסגל)' : 'Signed in Agency (Move to Roster)')
+                        : st}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Agency Priority
+                  {language === 'he' ? 'עדיפות בסוכנות' : 'Agency Priority'}
                 </label>
                 <select
                   value={priority}
@@ -442,7 +421,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Assigned Agent
+                  {language === 'he' ? 'סוכן מטפל' : 'Assigned Agent'}
                 </label>
                 <input
                   type="text"
@@ -452,139 +431,75 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 />
               </div>
             </div>
+
+            {talkStage === 'Signed' && (
+              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                <UserCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>
+                  {language === 'he'
+                    ? 'שמירה במצב "נחתמה בסוכנות" תעביר את השחקנית אוטומטית לסגל הסוכנות הרשמי ותסיר אותה מרשימת המועמדות.'
+                    : 'Saving as "Signed in Agency" will automatically move this player to the Agency Roster and remove her from In Talk With.'}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* TARGET SALARY & CURRENCY SELECTION SECTION */}
-          <div className="p-4 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 space-y-3">
+          {/* Video Highlights & Reel (Optional) */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Coins className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
-                  {t.targetSalary} & Compensation
+                <Video className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                  {language === 'he' ? 'סרטון ביצועים וקטעי וידאו (אופציונלי)' : 'Scouting Video Highlights & Reel (Optional)'}
                 </h3>
               </div>
-              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
-                Supports NIS, USD ($) & Euros (€)
+              <span className="text-[11px] text-slate-500 font-medium">
+                {language === 'he' ? 'לא חובה' : 'Optional'}
               </span>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Amount */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Target Salary Amount *
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs font-bold text-slate-500">
-                    {CURRENCY_SYMBOLS[targetSalaryCurrency]}
-                  </span>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={targetSalaryAmount}
-                    onChange={e => setTargetSalaryAmount(Number(e.target.value))}
-                    className="w-full pl-7 pr-3 py-2 text-sm font-mono-tabular font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              {/* Currency Selector (NIS, Dollar, Euros) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Salary Currency *
-                </label>
-                <select
-                  value={targetSalaryCurrency}
-                  onChange={e => setTargetSalaryCurrency(e.target.value as Currency)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                >
-                  <option value="EUR">Euros (€ EUR)</option>
-                  <option value="USD">US Dollars ($ USD)</option>
-                  <option value="ILS">Israeli Shekels (₪ NIS)</option>
-                </select>
-              </div>
-
-              {/* Payment Cadence */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Payment Cadence
-                </label>
-                <select
-                  value={targetSalaryPeriod}
-                  onChange={e => setTargetSalaryPeriod(e.target.value as SalaryPeriod)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                >
-                  <option value="Weekly">{t.weekly} (/wk)</option>
-                  <option value="Monthly">{t.monthly} (/mo)</option>
-                  <option value="Annual">{t.annual} (/yr)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Live Multi-Currency Conversion Preview */}
-            <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/50 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-mono-tabular">
-              <span>Automatic Conversion Reference:</span>
-              <div className="flex items-center gap-3">
-                <span>€{new Intl.NumberFormat().format(inEur)}</span>
-                <span>·</span>
-                <span>${new Intl.NumberFormat().format(inUsd)}</span>
-                <span>·</span>
-                <span className="font-bold">₪{new Intl.NumberFormat().format(inIls)} NIS</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Video Highlights & Reel */}
-          <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-3">
-            <div className="flex items-center gap-2">
-              <Video className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
-                Scouting Video Highlights & Clip Information
-              </h3>
-            </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-400">
-              Provide direct video reel (MP4, YouTube, Vimeo, Hudl) to evaluate tactical attributes.
+              {language === 'he'
+                ? 'באפשרותך להזין קישור לסרטון ביצועים (MP4, YouTube, Vimeo, Hudl). אם אין סרטון זמין, ניתן להשאיר ריק.'
+                : 'Direct video link (MP4, YouTube, Vimeo, Hudl) to evaluate match footage. Leave blank if not yet available.'}
             </p>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Video URL (MP4, YouTube, Vimeo, Hudl) *
+                {language === 'he' ? 'כתובת סרטון (אופציונלי)' : 'Video URL (Optional)'}
               </label>
               <input
                 type="text"
-                required
-                placeholder="https://..."
+                placeholder={language === 'he' ? 'https://... (אופציונלי)' : 'https://... (Optional)'}
                 value={videoUrl}
                 onChange={e => setVideoUrl(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Video Reel Title
+                  {language === 'he' ? 'כותרת סרטון (אופציונלי)' : 'Video Reel Title (Optional)'}
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 2025/26 Season - Key Touches & Goals"
+                  placeholder={language === 'he' ? 'לדוגמה: ביצועים עונת 2025/26' : 'e.g. 2025/26 Season - Key Touches & Goals'}
                   value={videoTitle}
                   onChange={e => setVideoTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Video Notes / Timestamps
+                  {language === 'he' ? 'הערות וידאו / זמנים' : 'Video Notes / Timestamps'}
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 01:20 1v1 takeon, 02:45 line-breaking pass"
+                  placeholder={language === 'he' ? 'לדוגמה: 01:20 מעבר שחקנית' : 'e.g. 01:20 1v1 takeon, 02:45 line-breaking pass'}
                   value={videoDescription}
                   onChange={e => setVideoDescription(e.target.value)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400"
                 />
               </div>
             </div>
@@ -626,7 +541,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Tactical Fit & Playing Style Analysis
+                {language === 'he' ? 'התאמה לסוכנות ופרופיל מקצועי' : 'Agency Fit & Playing Style Analysis'}
               </label>
               <textarea
                 rows={2}
@@ -700,13 +615,17 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
-              Cancel
+              {language === 'he' ? 'ביטול' : 'Cancel'}
             </button>
             <button
               type="submit"
               className="px-5 py-2 text-xs sm:text-sm font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors"
             >
-              {prospectToEdit ? 'Save Changes' : 'Save to Talk Pipeline'}
+              {talkStage === 'Signed'
+                ? (language === 'he' ? 'נחתמה בסוכנות והעבר לסגל' : 'Sign in Agency & Move to Roster')
+                : prospectToEdit
+                  ? (language === 'he' ? 'שמור שינויים' : 'Save Changes')
+                  : (language === 'he' ? 'שמור מועמדת' : 'Save Candidate')}
             </button>
           </div>
 

@@ -4,7 +4,6 @@ import { INITIAL_PLAYERS, INITIAL_PROSPECTS } from './data/mockPlayers';
 import { INITIAL_TRACKED_PLAYERS } from './data/mockTrackedPlayers';
 import { getContractDaysRemaining, getContractUrgency } from './utils/contractAlerts';
 import { TRANSLATIONS } from './translations/translations';
-import { formatSalary } from './utils/currency';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { DashboardView } from './components/DashboardView';
@@ -627,6 +626,12 @@ export default function App() {
 
   // Handlers for Prospects ("In Talk With")
   const handleSaveProspect = (savedProspect: TalkProspect) => {
+    // If user marked stage as 'Signed', automatically move to agency roster!
+    if (savedProspect.talkStage === 'Signed') {
+      handleSignProspectToRoster(savedProspect);
+      return;
+    }
+
     setProspects(prev => {
       const idx = prev.findIndex(p => p.id === savedProspect.id);
       if (idx >= 0) {
@@ -640,8 +645,8 @@ export default function App() {
       saveProspectToFirestore(currentUser.uid, savedProspect).catch(console.error);
     }
     showToast(language === 'he' 
-      ? `המועמדת "${savedProspect.name}" נשמרה בצינור השיחות.` 
-      : `Candidate "${savedProspect.name}" saved to talk pipeline.`);
+      ? `המועמדת "${savedProspect.name}" נשמרה במועמדות לייצוג בסוכנות.` 
+      : `Candidate "${savedProspect.name}" saved to agency pipeline.`);
   };
 
   const handleAddConversationLog = (prospectId: string, newLog: ConversationLog) => {
@@ -662,15 +667,13 @@ export default function App() {
     showToast(language === 'he' ? 'סיכום שיחה חדש נוסף ליומן.' : 'New interaction note logged.');
   };
 
-  // Convert "In Talk With" Prospect to Signed Agency Player!
+  // Convert "In Talk With" Prospect to Signed Agency Player and MOVE to Agency Roster!
   const handleSignProspectToRoster = (prospect: TalkProspect) => {
     const now = new Date();
     const expiry = new Date();
     expiry.setFullYear(expiry.getFullYear() + 2);
 
-    const calculatedMarketVal = prospect.targetSalaryAmount
-      ? formatSalary(prospect.targetSalaryAmount * 52 * 2, prospect.targetSalaryCurrency || 'EUR', currency, 'Annual', language)
-      : (prospect.scope === 'International' ? '€500,000' : '€350,000');
+    const calculatedMarketVal = prospect.scope === 'International' ? '€500,000' : '€350,000';
 
     const newPlayer: Player = {
       id: `ply-signed-${Date.now()}`,
@@ -692,35 +695,26 @@ export default function App() {
       marketValue: calculatedMarketVal,
       agencyFeePct: 10,
       representationType: 'Exclusive',
-      notes: `Successfully recruited via AURA scouting pipeline from ${prospect.currentClub}. Assigned agent: ${prospect.assignedAgent}.${prospect.targetSalaryAmount ? ` Target compensation agreed at ${formatSalary(prospect.targetSalaryAmount, prospect.targetSalaryCurrency || 'EUR', currency, prospect.targetSalaryPeriod || 'Weekly', language)}.` : ''}`,
-      videoHighlightsUrl: prospect.videoUrl,
+      notes: `Signed to AURA Agency representation from ${prospect.currentClub}. Assigned agent: ${prospect.assignedAgent}.`,
+      videoHighlightsUrl: prospect.videoUrl || '',
       createdAt: now.toISOString().split('T')[0]
     };
 
+    // 1. Add to Agency Roster
     setPlayers(prev => [newPlayer, ...prev]);
 
-    let updatedProspect: TalkProspect | undefined;
-    setProspects(prev => prev.map(p => {
-      if (p.id === prospect.id) {
-        updatedProspect = {
-          ...p,
-          talkStage: 'Signed'
-        };
-        return updatedProspect;
-      }
-      return p;
-    }));
+    // 2. Automatically REMOVE from "In Talk With" candidates list (Move operation)
+    setProspects(prev => prev.filter(p => p.id !== prospect.id));
 
+    // 3. Persist in Firestore
     if (currentUser) {
       savePlayerToFirestore(currentUser.uid, newPlayer).catch(console.error);
-      if (updatedProspect) {
-        saveProspectToFirestore(currentUser.uid, updatedProspect).catch(console.error);
-      }
+      deleteProspectFromFirestore(currentUser.uid, prospect.id).catch(console.error);
     }
 
     showToast(language === 'he'
-      ? `🎉 ברכות! ${prospect.name} הוחתמה רשמית ונוספה לסגל הסוכנות.`
-      : `🎉 Congratulations! ${prospect.name} has been officially signed and added to Agency Roster.`);
+      ? `🎉 ברכות! ${prospect.name} נחתמה בסוכנות והועברה ישירות לסגל הסוכנות הרשמי!`
+      : `🎉 Congratulations! ${prospect.name} signed to agency and moved to Agency Roster!`);
     setActiveTab('roster');
   };
 
@@ -853,12 +847,17 @@ export default function App() {
             onNavigateTab={setActiveTab}
             onSelectPlayer={player => setDetailPlayer(player)}
             onSelectProspect={prospect => {
-              handleWatchVideo(
-                prospect.videoTitle, 
-                prospect.videoUrl, 
-                prospect, 
-                prospect.videoDescription
-              );
+              if (prospect.videoUrl && prospect.videoUrl.trim()) {
+                handleWatchVideo(
+                  prospect.videoTitle,
+                  prospect.videoUrl,
+                  prospect,
+                  prospect.videoDescription
+                );
+              } else {
+                setProspectToEdit(prospect);
+                setIsProspectModalOpen(true);
+              }
             }}
             onOpenQuickExtend={player => setQuickExtendPlayer(player)}
             onOpenAddPlayer={() => {

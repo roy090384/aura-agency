@@ -71,7 +71,15 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
         {/* Video Screen Viewport */}
         <div className="relative bg-black aspect-video w-full flex items-center justify-center">
-          {isDirectVideo ? (
+          {!videoUrl?.trim() ? (
+            <div className="p-8 text-center max-w-md">
+              <Video className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-white mb-1">No Video Reel Attached</h3>
+              <p className="text-xs text-slate-400">
+                Video highlight links are optional for agency candidates. You can attach a highlight URL anytime by editing the candidate dossier.
+              </p>
+            </div>
+          ) : isDirectVideo ? (
             <video
               src={videoUrl}
               controls

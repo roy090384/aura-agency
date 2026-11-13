@@ -6,12 +6,6 @@ import {
   getYouthBadgeColor 
 } from '../translations/translations';
 import { 
-  formatSalary, 
-  parseSalary, 
-  CURRENCY_SYMBOLS,
-  convertCurrency 
-} from '../utils/currency';
-import { 
   Globe, 
   MapPin, 
   Play, 
@@ -32,9 +26,7 @@ import {
   Edit,
   Trash2,
   CheckCircle2,
-  Tag,
-  Coins,
-  DollarSign
+  Tag
 } from 'lucide-react';
 
 interface InTalkWithViewProps {
@@ -80,28 +72,6 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
     'Contract Drafting',
     'Signed'
   ];
-
-  // Helper to get formatted target salary in the active currency (NIS, USD, EUR)
-  const getDisplaySalary = (prospect: TalkProspect): string => {
-    if (prospect.targetSalaryAmount) {
-      return formatSalary(
-        prospect.targetSalaryAmount,
-        prospect.targetSalaryCurrency || 'EUR',
-        currency,
-        prospect.targetSalaryPeriod || 'Weekly',
-        language
-      );
-    }
-    // Fallback parsing from scoutingReport.estimatedWageWeekly
-    const parsed = parseSalary(prospect.scoutingReport?.estimatedWageWeekly, 'EUR');
-    return formatSalary(
-      parsed.amount,
-      parsed.currency,
-      currency,
-      parsed.period,
-      language
-    );
-  };
 
   // Filtered prospects
   const filteredProspects = useMemo(() => {
@@ -239,7 +209,9 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
               >
                 <option value="ALL">{t.allStages}</option>
                 {stages.map(st => (
-                  <option key={st} value={st}>{st}</option>
+                  <option key={st} value={st}>
+                    {st === 'Signed' ? t.signToAgency : st}
+                  </option>
                 ))}
               </select>
             </div>
@@ -282,10 +254,12 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
         <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
           <MessageSquare className="w-10 h-10 text-slate-400 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
-            No recruitment candidates found
+            {language === 'he' ? 'לא נמצאו מועמדות לייצוג בסוכנות' : 'No agency candidates found'}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-4">
-            Try resetting your filters or add a new player candidate to begin negotiation tracking.
+            {language === 'he'
+              ? 'נסה לאפס את המסננים או הוסף מועמדת חדשה לייצוג בסוכנות.'
+              : 'Try resetting your filters or add a new candidate being considered for agency representation.'}
           </p>
           <button
             onClick={() => {
@@ -297,7 +271,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
             }}
             className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
           >
-            Reset Filters
+            {language === 'he' ? 'אפס סינון' : 'Reset Filters'}
           </button>
         </div>
       ) : activeView === 'stages' ? (
@@ -305,14 +279,15 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           {stages.map(st => {
             const inThisStage = filteredProspects.filter(p => p.talkStage === st);
+            const stageDisplay = st === 'Signed' ? t.signToAgency : st;
             return (
               <div 
                 key={st}
                 className="bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 p-3 flex flex-col min-h-[350px]"
               >
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate" title={st}>
-                    {st}
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate" title={stageDisplay}>
+                    {stageDisplay}
                   </span>
                   <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono-tabular font-semibold">
                     {inThisStage.length}
@@ -322,7 +297,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                 <div className="space-y-2.5 flex-1">
                   {inThisStage.map(prospect => {
                     const youthCat = prospect.youthCategory || 'Senior';
-                    const displaySalary = getDisplaySalary(prospect);
+                    const hasVideo = Boolean(prospect.videoUrl && prospect.videoUrl.trim().length > 0);
 
                     return (
                       <div
@@ -355,25 +330,20 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                           {POSITION_TRANSLATIONS[language][prospect.position] || prospect.position} · {prospect.age} {language === 'he' ? 'שנים' : 'yrs'}
                         </div>
 
-                        {/* TARGET SALARY HIGHLIGHT IN SWIMLANE */}
-                        <div className="p-1.5 rounded bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/40 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-medium flex items-center gap-1">
-                            <Coins className="w-3 h-3 text-emerald-600" />
-                            {t.targetSalary}:
-                          </span>
-                          <strong className="text-emerald-700 dark:text-emerald-400 font-mono-tabular font-bold">
-                            {displaySalary}
-                          </strong>
-                        </div>
-
-                        {/* Video Button */}
-                        <button
-                          onClick={() => onWatchVideo(prospect)}
-                          className="w-full flex items-center justify-center gap-1.5 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium text-[11px] transition-colors"
-                        >
-                          <Play className="w-3 h-3 text-emerald-600" />
-                          <span>{t.watchReel}</span>
-                        </button>
+                        {/* Video Button (Only if video attached) */}
+                        {hasVideo ? (
+                          <button
+                            onClick={() => onWatchVideo(prospect)}
+                            className="w-full flex items-center justify-center gap-1.5 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium text-[11px] transition-colors"
+                          >
+                            <Play className="w-3 h-3 text-emerald-600" />
+                            <span>{t.watchReel}</span>
+                          </button>
+                        ) : (
+                          <div className="py-1 text-center text-[10px] text-slate-400 italic">
+                            {t.noVideoAttached}
+                          </div>
+                        )}
 
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/60">
@@ -395,7 +365,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                             <button
                               onClick={() => onSignProspectToRoster(prospect)}
                               className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold hover:underline"
-                              title="Sign to Official Agency Roster"
+                              title={language === 'he' ? 'החתם בסוכנות והעבר לסגל השחקניות הרשמי' : 'Sign in Agency and move to Agency Roster'}
                             >
                               {t.signToAgency} &rarr;
                             </button>
@@ -421,7 +391,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
           {filteredProspects.map(prospect => {
             const latestConvo = prospect.conversationHistory[prospect.conversationHistory.length - 1];
             const youthCat = prospect.youthCategory || 'Senior';
-            const displaySalary = getDisplaySalary(prospect);
+            const hasVideo = Boolean(prospect.videoUrl && prospect.videoUrl.trim().length > 0);
 
             return (
               <div
@@ -480,57 +450,46 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                     </div>
                   </div>
 
-                  {/* TARGET SALARY FEATURE HIGHLIGHT BOX */}
-                  <div className="p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-emerald-600 text-white shrink-0">
-                        <Coins className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-emerald-800 dark:text-emerald-300 font-semibold block">
-                          {t.targetSalary} ({currency})
-                        </span>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-base font-extrabold text-emerald-950 dark:text-emerald-100 font-mono-tabular">
-                            {displaySalary}
-                          </span>
+                  {/* Video Reel Showcase Box (Only if video attached) */}
+                  {hasVideo ? (
+                    <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 text-white relative group">
+                      <div className="p-3 bg-gradient-to-t from-slate-950 via-slate-900/80 to-transparent flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="p-2 rounded-lg bg-emerald-600 text-white shrink-0 group-hover:scale-105 transition-transform">
+                            <Play className="w-4 h-4 fill-current" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-semibold text-white block truncate">
+                              {prospect.videoTitle || 'Tactical Video Reel'}
+                            </span>
+                            <span className="text-[11px] text-slate-400 block truncate">
+                              {prospect.videoDescription || 'Tactical match footage and skill analysis'}
+                            </span>
+                          </div>
                         </div>
+
+                        <button
+                          onClick={() => onWatchVideo(prospect)}
+                          className="px-3 py-1.5 text-xs font-bold bg-white text-slate-900 rounded-md hover:bg-emerald-400 hover:text-slate-950 transition-colors shrink-0 ml-2"
+                        >
+                          {t.watchVideo}
+                        </button>
                       </div>
                     </div>
-
-                    <div className="text-right rtl:text-left text-[11px] text-slate-500">
-                      <span>{t.salaryCadence}: </span>
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {prospect.targetSalaryPeriod || 'Weekly'}
-                      </strong>
-                    </div>
-                  </div>
-
-                  {/* Video Reel Showcase Box */}
-                  <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 text-white relative group">
-                    <div className="p-3 bg-gradient-to-t from-slate-950 via-slate-900/80 to-transparent flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="p-2 rounded-lg bg-emerald-600 text-white shrink-0 group-hover:scale-105 transition-transform">
-                          <Play className="w-4 h-4 fill-current" />
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-xs font-semibold text-white block truncate">
-                            {prospect.videoTitle}
-                          </span>
-                          <span className="text-[11px] text-slate-400 block truncate">
-                            {prospect.videoDescription || 'Tactical match footage and skill analysis'}
-                          </span>
-                        </div>
-                      </div>
-
+                  ) : (
+                    <div className="p-2.5 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 flex items-center justify-between text-xs text-slate-400">
+                      <span className="flex items-center gap-1.5 text-[11px]">
+                        <Video className="w-3.5 h-3.5 text-slate-400" />
+                        {t.noVideoAttached}
+                      </span>
                       <button
-                        onClick={() => onWatchVideo(prospect)}
-                        className="px-3 py-1.5 text-xs font-bold bg-white text-slate-900 rounded-md hover:bg-emerald-400 hover:text-slate-950 transition-colors shrink-0 ml-2"
+                        onClick={() => onEditProspect(prospect)}
+                        className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium hover:underline"
                       >
-                        {t.watchVideo}
+                        + {language === 'he' ? 'הוסף קישור וידאו' : 'Add Video'}
                       </button>
                     </div>
-                  </div>
+                  )}
 
                   {/* Scouting Report & Info Highlights */}
                   <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-xs space-y-2">
