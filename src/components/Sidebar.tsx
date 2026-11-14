@@ -17,6 +17,7 @@ import {
   LogIn,
   LogOut,
   Download,
+  Calculator,
   X
 } from 'lucide-react';
 import { Language, Currency, NavigationTab } from '../types/player';
@@ -113,6 +114,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.playerTracker,
       icon: Activity,
       count: trackedCount,
+      color: 'emerald'
+    },
+    {
+      id: 'compensation' as NavigationTab,
+      label: t.trainingCompensation,
+      icon: Calculator,
+      count: undefined,
       color: 'emerald'
     }
   ];

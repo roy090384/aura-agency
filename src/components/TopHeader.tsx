@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   Activity,
   Cloud,
-  LogIn
+  LogIn,
+  Calculator
 } from 'lucide-react';
 import { Language, Currency, NavigationTab } from '../types/player';
 import { TRANSLATIONS } from '../translations/translations';
@@ -76,6 +77,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         return t.contractAlerts;
       case 'tracker':
         return t.playerTracker;
+      case 'compensation':
+        return t.trainingCompensation;
       default:
         return 'Overview';
     }
@@ -93,6 +96,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         return AlertTriangle;
       case 'tracker':
         return Activity;
+      case 'compensation':
+        return Calculator;
       default:
         return LayoutDashboard;
     }

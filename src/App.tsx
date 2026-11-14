@@ -11,6 +11,7 @@ import { PlayerListView } from './components/PlayerListView';
 import { InTalkWithView } from './components/InTalkWithView';
 import { ContractAlertsView } from './components/ContractAlertsView';
 import { PlayerTrackerView } from './components/PlayerTrackerView';
+import { TrainingCompensationView } from './components/TrainingCompensationView';
 import { AddTrackedPlayerModal } from './components/AddTrackedPlayerModal';
 import { ManualMinutesModal } from './components/ManualMinutesModal';
 import { PlayerModal } from './components/PlayerModal';
@@ -966,6 +967,9 @@ export default function App() {
             language={language}
           />
         )}
+
+        {/* Training Compensation Calculator Tab */}
+        {activeTab === 'compensation' && <TrainingCompensationView />}
       </main>
 
       {/* Floating Toast Notification */}

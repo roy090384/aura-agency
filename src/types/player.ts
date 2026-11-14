@@ -26,7 +26,7 @@ export type YouthCategory = 'Senior' | 'U19' | 'U17' | 'U15';
 export type TrackerCategory = 'U15' | 'U16' | 'U17' | 'U19' | 'Womans';
 export type PlayerGender = 'Female' | 'Male';
 
-export type NavigationTab = 'dashboard' | 'roster' | 'in-talk' | 'alerts' | 'tracker';
+export type NavigationTab = 'dashboard' | 'roster' | 'in-talk' | 'alerts' | 'tracker' | 'compensation';
 
 export type Currency = 'EUR' | 'USD' | 'ILS';
 export type SalaryPeriod = 'Weekly' | 'Monthly' | 'Annual';
