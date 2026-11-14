@@ -365,7 +365,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                             <button
                               onClick={() => onSignProspectToRoster(prospect)}
                               className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold hover:underline"
-                              title={language === 'he' ? 'החתם בסוכנות והעבר לסגל השחקניות הרשמי' : 'Sign in Agency and move to Agency Roster'}
+                              title={language === 'he' ? 'החתם בסוכנות והעבר לסגל השחקניות הרשמי' : 'Sign in Agency and move to Female Roster'}
                             >
                               {t.signToAgency} &rarr;
                             </button>

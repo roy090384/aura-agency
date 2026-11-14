@@ -425,7 +425,7 @@ export default function App() {
       if (currentUser) {
         deletePlayerFromFirestore(currentUser.uid, pid).catch(console.error);
       }
-      showToast(language === 'he' ? 'השחקנית נמחקה מהסגל.' : 'Player removed from agency roster.');
+      showToast(language === 'he' ? 'השחקנית נמחקה מסגל השחקניות.' : 'Player removed from female roster.');
     } else if (deleteTarget.type === 'multiple_players' && deleteTarget.playerIds) {
       const ids = new Set(deleteTarget.playerIds);
       setPlayers(prev => prev.filter(p => !ids.has(p.id)));
@@ -433,8 +433,8 @@ export default function App() {
         deleteMultiplePlayersFromFirestore(currentUser.uid, deleteTarget.playerIds).catch(console.error);
       }
       showToast(language === 'he' 
-        ? `${deleteTarget.playerIds.length} שחקניות נמחקו מהסגל.` 
-        : `${deleteTarget.playerIds.length} players removed from agency roster.`);
+        ? `${deleteTarget.playerIds.length} שחקניות נמחקו מסגל השחקניות.` 
+        : `${deleteTarget.playerIds.length} players removed from female roster.`);
     } else if (deleteTarget.type === 'single_prospect' && deleteTarget.prospect) {
       const pid = deleteTarget.prospect.id;
       setProspects(prev => prev.filter(p => p.id !== pid));
@@ -714,8 +714,8 @@ export default function App() {
     }
 
     showToast(language === 'he'
-      ? `🎉 ברכות! ${prospect.name} נחתמה בסוכנות והועברה ישירות לסגל הסוכנות הרשמי!`
-      : `🎉 Congratulations! ${prospect.name} signed to agency and moved to Agency Roster!`);
+      ? `🎉 ברכות! ${prospect.name} נחתמה בסוכנות והועברה ישירות לסגל השחקניות הרשמי!`
+      : `🎉 Congratulations! ${prospect.name} signed to agency and moved to Female Roster!`);
     setActiveTab('roster');
   };
 

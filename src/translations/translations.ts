@@ -6,7 +6,7 @@ export const TRANSLATIONS = {
     brandName: 'AURA',
     brandSubtitle: "Women's Football Agency",
     dashboard: 'Dashboard',
-    agencyRoster: 'Agency Roster',
+    agencyRoster: 'Female Roster',
     inTalkWith: 'In Talk With',
     contractAlerts: 'Contract Alerts',
     trainingCompensation: 'Training Compensation',
@@ -48,7 +48,7 @@ export const TRANSLATIONS = {
     warningSub: 'Expiring within 30 days',
     warningDesc: 'The following players have agency representation agreements expiring in less than 1 month. Prompt renewal negotiation is required to prevent mandate lapse.',
     manageAlerts: 'Manage Contract Alerts',
-    metricRosterTitle: 'Agency Roster',
+    metricRosterTitle: 'Female Roster',
     metricRosterSub: 'Players Represented',
     metricAlertsTitle: 'Contract Alerts (≤ 1 Month)',
     metricAlertsSub: 'Needs Urgent Renewal',
@@ -67,14 +67,14 @@ export const TRANSLATIONS = {
     expiresToday: 'Expires Today',
     birthdayRadarTitle: 'Upcoming Birthdays Radar',
     birthdayRadarSub: 'Roster Celebrations',
-    birthdayRadarDesc: 'Monitor player birthdays across your agency roster to send timely wishes and celebrate milestones.',
+    birthdayRadarDesc: 'Monitor player birthdays across your female roster to send timely wishes and celebrate milestones.',
     birthdayToday: 'Birthday Today! 🎉',
     birthdayInDays: 'in {days} days',
     turningAge: 'Turning {age}',
     noUpcomingBirthdays: 'No player birthdays in the next 30 days',
 
     // Roster / Player List
-    rosterTitle: 'Agency Player Roster',
+    rosterTitle: 'Female Roster',
     rosterSubtitle: 'signed athletes',
     contracts1MonthPriority: 'contracts with 1-month renewal priority',
     searchPlaceholder: 'Search player, club, position, nation...',
@@ -170,8 +170,8 @@ export const TRANSLATIONS = {
 
     // Delete Confirmation Modal
     deleteConfirmTitle: 'Confirm Player Removal',
-    deleteConfirmSingle: 'Are you sure you want to delete this player from the agency roster? This action will remove all associated contract dates and dossier data.',
-    deleteConfirmMultiple: 'Are you sure you want to delete the selected players from the agency roster?',
+    deleteConfirmSingle: 'Are you sure you want to delete this player from the female roster? This action will remove all associated contract dates and dossier data.',
+    deleteConfirmMultiple: 'Are you sure you want to delete the selected players from the female roster?',
     deleteConfirmBtn: 'Yes, Delete Player',
     deleteConfirmMultipleBtn: 'Yes, Delete Selected',
 
@@ -242,7 +242,7 @@ export const TRANSLATIONS = {
     brandName: 'AURA',
     brandSubtitle: 'סוכנות כדורגל נשים',
     dashboard: 'לוח בקרה',
-    agencyRoster: 'סגל הסוכנות',
+    agencyRoster: 'סגל שחקניות',
     inTalkWith: 'בשיחות עם שחקניות',
     contractAlerts: 'התראות חוזים',
     trainingCompensation: 'מחשבון דמי השבחה',
@@ -310,7 +310,7 @@ export const TRANSLATIONS = {
     noUpcomingBirthdays: 'אין ימי הולדת בסגל ב-30 הימים הקרובים',
 
     // Roster / Player List
-    rosterTitle: 'סגל שחקניות הסוכנות',
+    rosterTitle: 'סגל שחקניות',
     rosterSubtitle: 'שחקניות חתומות',
     contracts1MonthPriority: 'חוזים בעדיפות חידוש של חודש אחד',
     searchPlaceholder: 'חיפוש שחקנית, מועדון, עמדה, לאום...',
@@ -406,7 +406,7 @@ export const TRANSLATIONS = {
 
     // Delete Confirmation Modal
     deleteConfirmTitle: 'אישור מחיקת שחקנית',
-    deleteConfirmSingle: 'האם את/ה בטוח/ה שברצונך למחוק שחקנית זו מסגל הסוכנות? פעולה זו תסיר את נתוני החוזה ותיק השחקנית.',
+    deleteConfirmSingle: 'האם את/ה בטוח/ה שברצונך למחוק שחקנית זו מסגל השחקניות? פעולה זו תסיר את נתוני החוזה ותיק השחקנית.',
     deleteConfirmMultiple: 'האם את/ה בטוח/ה שברצונך למחוק את השחקניות הנבחרות מהסגל?',
     deleteConfirmBtn: 'כן, מחק שחקנית',
     deleteConfirmMultipleBtn: 'כן, מחק נבחרות',

@@ -437,8 +437,8 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 <UserCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <span>
                   {language === 'he'
-                    ? 'שמירה במצב "נחתמה בסוכנות" תעביר את השחקנית אוטומטית לסגל הסוכנות הרשמי ותסיר אותה מרשימת המועמדות.'
-                    : 'Saving as "Signed in Agency" will automatically move this player to the Agency Roster and remove her from In Talk With.'}
+                    ? 'שמירה במצב "נחתמה בסוכנות" תעביר את השחקנית אוטומטית לסגל השחקניות הרשמי ותסיר אותה מרשימת המועמדות.'
+                    : 'Saving as "Signed in Agency" will automatically move this player to the Female Roster and remove her from In Talk With.'}
                 </span>
               </div>
             )}
