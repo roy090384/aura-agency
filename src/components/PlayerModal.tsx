@@ -3,6 +3,7 @@ import { Player, PlayerPosition, PlayerStatus, YouthCategory, Language } from '.
 import { TRANSLATIONS, POSITION_TRANSLATIONS, getYouthBadgeColor } from '../translations/translations';
 import { X, User, Calendar, Shield, DollarSign, Video, Mail, Phone, Check, Tag, Cake } from 'lucide-react';
 import { NationalitySelect } from './NationalitySelect';
+import { WomenClubSelect } from './WomenClubSelect';
 import { calculateAgeFromBirthDate } from '../utils/birthdayAlerts';
 
 interface PlayerModalProps {
@@ -250,16 +251,17 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Current Club *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Chelsea FC Women"
+                <WomenClubSelect
                   value={clubName}
-                  onChange={e => setClubName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                  onChange={(selectedClub, suggestedLeague) => {
+                    setClubName(selectedClub);
+                    if (suggestedLeague) {
+                      setLeague(suggestedLeague);
+                    }
+                  }}
+                  language={language}
+                  label={language === 'he' ? 'קבוצה נוכחית' : 'Current Club'}
+                  required
                 />
               </div>
             </div>

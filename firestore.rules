@@ -62,6 +62,17 @@ service cloud.firestore {
           && request.resource.data.name.size() <= 128;
       }
 
+      // International / foreign female prospects
+      match /foreignProspects/{foreignProspectId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidId(foreignProspectId)
+          && request.resource.data.userId == userId
+          && request.resource.data.fullName is string
+          && request.resource.data.fullName.size() > 0
+          && request.resource.data.fullName.size() <= 128;
+      }
+
       // User preferences (currency, language, theme)
       match /settings/preferences {
         allow read, delete: if isOwner(userId);

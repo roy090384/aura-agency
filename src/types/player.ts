@@ -144,3 +144,49 @@ export interface TalkProspect {
   generalNotes: string;
   createdAt: string;
 }
+
+export type TargetMarketOption =
+  | 'Israel - Premier League'
+  | 'Israel - National League'
+  | 'Europe';
+
+export type ForeignNegotiationStatus =
+  | 'Initial Contact'
+  | 'In Talks to Sign'
+  | 'Video/Data Review'
+  | 'Representation Mandate Sent'
+  | 'Signed with Agency'
+  | 'Offered to Clubs';
+
+export type ClubOfferStatus = 'Sent' | 'Reviewing' | 'Interested' | 'Declined';
+
+export interface ClubOfferEntry {
+  id: string;
+  clubName: string;
+  status: ClubOfferStatus;
+  date?: string;
+  notes?: string;
+}
+
+export interface ForeignProspect {
+  id: string;
+  fullName: string;
+  nationalityPassport: string;
+  passportCategory?: string;
+  age: number;
+  birthDate?: string;
+  primaryPosition: PlayerPosition | string;
+  secondaryPosition?: PlayerPosition | string;
+  currentClub: string;
+  currentLeague: string;
+  targetMarkets: TargetMarketOption[];
+  negotiationStatus: ForeignNegotiationStatus;
+  clubsOfferedTo: ClubOfferEntry[];
+  salaryExpectations?: string;
+  profileLink?: string;
+  agentNotes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  statusUpdatedAt?: string;
+}
+

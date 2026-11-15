@@ -8,7 +8,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Player, TalkProspect, TrackedPlayer, Currency, Language } from '../types/player';
+import { Player, TalkProspect, TrackedPlayer, ForeignProspect, Currency, Language } from '../types/player';
 
 /**
  * Real-time subscription to user's agency players
@@ -194,6 +194,61 @@ export async function deleteMultipleTrackedPlayersFromFirestore(userId: string, 
 }
 
 /**
+ * Real-time subscription to user's international/foreign female prospects
+ */
+export function subscribeToForeignProspects(
+  userId: string,
+  onUpdate: (foreignProspects: ForeignProspect[]) => void,
+  onError?: (err: any) => void
+) {
+  const path = `users/${userId}/foreignProspects`;
+  const colRef = collection(db, 'users', userId, 'foreignProspects');
+  const q = query(colRef);
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: ForeignProspect[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push(docSnap.data() as ForeignProspect);
+      });
+      onUpdate(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Save or update foreign prospect in Firestore
+ */
+export async function saveForeignProspectToFirestore(userId: string, prospect: ForeignProspect) {
+  const path = `users/${userId}/foreignProspects/${prospect.id}`;
+  try {
+    const docRef = doc(db, 'users', userId, 'foreignProspects', prospect.id);
+    const dataToSave = { ...prospect, userId };
+    await setDoc(docRef, dataToSave, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Delete foreign prospect from Firestore
+ */
+export async function deleteForeignProspectFromFirestore(userId: string, prospectId: string) {
+  const path = `users/${userId}/foreignProspects/${prospectId}`;
+  try {
+    const docRef = doc(db, 'users', userId, 'foreignProspects', prospectId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
  * Save agency preferences (currency, language, theme) to Firestore
  */
 export async function savePreferencesToFirestore(
@@ -217,7 +272,8 @@ export async function syncLocalDataToFirestoreIfEmpty(
   userId: string,
   localPlayers: Player[],
   localProspects: TalkProspect[],
-  localTracked: TrackedPlayer[]
+  localTracked: TrackedPlayer[],
+  localForeignProspects: ForeignProspect[] = []
 ) {
   try {
     // 1. Players: check existing cloud IDs
@@ -250,6 +306,17 @@ export async function syncLocalDataToFirestoreIfEmpty(
     for (const tp of localTracked) {
       if (!existingTrackedIds.has(tp.id)) {
         await saveTrackedPlayerToFirestore(userId, tp);
+      }
+    }
+
+    // 4. Foreign Prospects: check existing cloud IDs
+    const foreignCol = collection(db, 'users', userId, 'foreignProspects');
+    const fSnap = await getDocs(foreignCol);
+    const existingForeignIds = new Set(fSnap.docs.map(d => d.id));
+
+    for (const fp of localForeignProspects) {
+      if (!existingForeignIds.has(fp.id)) {
+        await saveForeignProspectToFirestore(userId, fp);
       }
     }
   } catch (err) {

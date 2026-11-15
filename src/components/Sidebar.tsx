@@ -158,15 +158,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Shield className="w-5 h-5 fill-current opacity-90" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-base tracking-wider text-slate-900 dark:text-white uppercase font-sans">
-                    {t.brandName}
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold">
-                    PRO
-                  </span>
+                <div className="font-extrabold text-xs sm:text-[13px] leading-snug tracking-wide text-slate-900 dark:text-white uppercase font-sans">
+                  {t.brandName}
                 </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                   {t.brandSubtitle}
                 </div>
               </div>

@@ -210,8 +210,8 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {language === 'he'
-                ? 'ניהול מועמדות לייצוג בסוכנות AURA, סקאוטינג, סרטוני ביצועים אופציונליים ושלבי החתמה בסוכנות.'
-                : 'Track prospective representation candidates for AURA Agency, scouting reports, optional video reels, and agency signing stages.'}
+                ? 'ניהול מועמדות לייצוג בסוכנות BRIT SPORT GROUP Management, סקאוטינג, סרטוני ביצועים אופציונליים ושלבי החתמה בסוכנות.'
+                : 'Track prospective representation candidates for BRIT SPORT GROUP Management, scouting reports, optional video reels, and agency signing stages.'}
             </p>
           </div>
           <button

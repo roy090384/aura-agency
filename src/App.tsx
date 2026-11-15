@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Player, TalkProspect, ConversationLog, YouthCategory, Language, Currency, TrackedPlayer, TrackerCategory, NavigationTab } from './types/player';
+import { Player, TalkProspect, ForeignProspect, ConversationLog, YouthCategory, Language, Currency, TrackedPlayer, TrackerCategory, NavigationTab } from './types/player';
 import { INITIAL_PLAYERS, INITIAL_PROSPECTS } from './data/mockPlayers';
 import { INITIAL_TRACKED_PLAYERS } from './data/mockTrackedPlayers';
 import { getContractDaysRemaining, getContractUrgency } from './utils/contractAlerts';
@@ -16,6 +16,7 @@ import { AddTrackedPlayerModal } from './components/AddTrackedPlayerModal';
 import { ManualMinutesModal } from './components/ManualMinutesModal';
 import { PlayerModal } from './components/PlayerModal';
 import { ProspectModal } from './components/ProspectModal';
+import { ForeignProspectModal } from './components/ForeignProspectModal';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { ConversationLogModal } from './components/ConversationLogModal';
 import { QuickExtendModal } from './components/QuickExtendModal';
@@ -37,6 +38,9 @@ import {
   saveTrackedPlayerToFirestore, 
   deleteTrackedPlayerFromFirestore, 
   deleteMultipleTrackedPlayersFromFirestore,
+  subscribeToForeignProspects,
+  saveForeignProspectToFirestore,
+  deleteForeignProspectFromFirestore,
   savePreferencesToFirestore, 
   syncLocalDataToFirestoreIfEmpty 
 } from './services/firestoreService';
@@ -109,7 +113,19 @@ export default function App() {
     return INITIAL_TRACKED_PLAYERS;
   });
 
+  // User-owned International / Foreign Female Prospects State
+  const [foreignProspects, setForeignProspects] = useState<ForeignProspect[]>(() => {
+    try {
+      const stored = localStorage.getItem('aura_foreign_prospects_v1');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error('Failed to load foreign prospects from storage', e);
+    }
+    return [];
+  });
+
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
+  const [inTalkSubTab, setInTalkSubTab] = useState<'candidates' | 'foreign'>('candidates');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
@@ -135,6 +151,9 @@ export default function App() {
   const [isProspectModalOpen, setIsProspectModalOpen] = useState(false);
   const [prospectToEdit, setProspectToEdit] = useState<TalkProspect | null>(null);
 
+  const [isForeignProspectModalOpen, setIsForeignProspectModalOpen] = useState(false);
+  const [foreignProspectToEdit, setForeignProspectToEdit] = useState<ForeignProspect | null>(null);
+
   const [detailPlayer, setDetailPlayer] = useState<Player | null>(null);
   const [quickExtendPlayer, setQuickExtendPlayer] = useState<Player | null>(null);
 
@@ -145,10 +164,11 @@ export default function App() {
   // Easy Deletion states
   const [deleteTarget, setDeleteTarget] = useState<{
     isOpen: boolean;
-    type: 'single_player' | 'multiple_players' | 'single_prospect' | 'single_tracked' | 'multiple_tracked';
+    type: 'single_player' | 'multiple_players' | 'single_prospect' | 'single_foreign_prospect' | 'single_tracked' | 'multiple_tracked';
     player?: Player;
     playerIds?: string[];
     prospect?: TalkProspect;
+    foreignProspect?: ForeignProspect;
     trackedPlayer?: TrackedPlayer;
     trackedIds?: string[];
   }>({
@@ -240,18 +260,28 @@ export default function App() {
     }
   }, [trackedPlayers]);
 
+  // Persist foreign prospects
+  useEffect(() => {
+    try {
+      localStorage.setItem('aura_foreign_prospects_v1', JSON.stringify(foreignProspects));
+    } catch (e) {
+      console.error('Failed to save foreign prospects', e);
+    }
+  }, [foreignProspects]);
+
   // Firebase Auth and real-time Firestore synchronization
   useEffect(() => {
     let unsubPlayers: (() => void) | undefined;
     let unsubProspects: (() => void) | undefined;
     let unsubTracked: (() => void) | undefined;
+    let unsubForeign: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
         setIsCloudSyncing(true);
         try {
-          await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers);
+          await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects);
         } catch (err) {
           console.error('Error syncing initial data:', err);
         } finally {
@@ -269,10 +299,15 @@ export default function App() {
         unsubTracked = subscribeToTrackedPlayers(user.uid, (remoteTracked) => {
           setTrackedPlayers(remoteTracked);
         });
+
+        unsubForeign = subscribeToForeignProspects(user.uid, (remoteForeign) => {
+          setForeignProspects(remoteForeign);
+        });
       } else {
         if (unsubPlayers) unsubPlayers();
         if (unsubProspects) unsubProspects();
         if (unsubTracked) unsubTracked();
+        if (unsubForeign) unsubForeign();
       }
     });
 
@@ -281,6 +316,7 @@ export default function App() {
       if (unsubPlayers) unsubPlayers();
       if (unsubProspects) unsubProspects();
       if (unsubTracked) unsubTracked();
+      if (unsubForeign) unsubForeign();
     };
   }, []);
 
@@ -417,6 +453,14 @@ export default function App() {
     });
   };
 
+  const handleRequestDeleteForeignProspect = (foreignProspect: ForeignProspect) => {
+    setDeleteTarget({
+      isOpen: true,
+      type: 'single_foreign_prospect',
+      foreignProspect
+    });
+  };
+
   const handleConfirmDelete = () => {
     if (deleteTarget.type === 'single_player' && deleteTarget.player) {
       const pid = deleteTarget.player.id;
@@ -442,6 +486,13 @@ export default function App() {
         deleteProspectFromFirestore(currentUser.uid, pid).catch(console.error);
       }
       showToast(language === 'he' ? 'המועמדת הוסרה מצינור השיחות.' : 'Candidate removed from talk pipeline.');
+    } else if (deleteTarget.type === 'single_foreign_prospect' && deleteTarget.foreignProspect) {
+      const pid = deleteTarget.foreignProspect.id;
+      setForeignProspects(prev => prev.filter(p => p.id !== pid));
+      if (currentUser) {
+        deleteForeignProspectFromFirestore(currentUser.uid, pid).catch(console.error);
+      }
+      showToast(language === 'he' ? 'השחקנית הזרה הוסרה מרשימת המעקב.' : 'Foreign prospect removed from pipeline.');
     } else if (deleteTarget.type === 'single_tracked' && deleteTarget.trackedPlayer) {
       const pid = deleteTarget.trackedPlayer.id;
       setTrackedPlayers(prev => prev.filter(p => p.id !== pid));
@@ -650,6 +701,25 @@ export default function App() {
       : `Candidate "${savedProspect.name}" saved to agency pipeline.`);
   };
 
+  // Handlers for International / Foreign Female Prospects
+  const handleSaveForeignProspect = (savedForeign: ForeignProspect) => {
+    setForeignProspects(prev => {
+      const idx = prev.findIndex(p => p.id === savedForeign.id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = savedForeign;
+        return updated;
+      }
+      return [savedForeign, ...prev];
+    });
+    if (currentUser) {
+      saveForeignProspectToFirestore(currentUser.uid, savedForeign).catch(console.error);
+    }
+    showToast(language === 'he'
+      ? `השחקנית הזרה "${savedForeign.fullName}" נשמרה בהצלחה.`
+      : `Foreign prospect "${savedForeign.fullName}" saved successfully.`);
+  };
+
   const handleAddConversationLog = (prospectId: string, newLog: ConversationLog) => {
     let updatedProspect: TalkProspect | undefined;
     setProspects(prev => prev.map(p => {
@@ -696,7 +766,7 @@ export default function App() {
       marketValue: calculatedMarketVal,
       agencyFeePct: 10,
       representationType: 'Exclusive',
-      notes: `Signed to AURA Agency representation from ${prospect.currentClub}. Assigned agent: ${prospect.assignedAgent}.`,
+      notes: `Signed to BRIT SPORT GROUP Management representation from ${prospect.currentClub}. Assigned agent: ${prospect.assignedAgent}.`,
       videoHighlightsUrl: prospect.videoUrl || '',
       createdAt: now.toISOString().split('T')[0]
     };
@@ -734,14 +804,16 @@ export default function App() {
   const handleExportBackup = () => {
     try {
       const backupData = {
-        agencyName: "AURA | Women's Football Agency",
+        agencyName: "BRIT SPORT GROUP Management | Women's Football Agency",
         exportTimestamp: new Date().toISOString(),
         userEmail: currentUser?.email || 'local_session',
         totalPlayers: players.length,
         totalProspects: prospects.length,
+        totalForeignProspects: foreignProspects.length,
         totalTrackedPlayers: trackedPlayers.length,
         players,
         prospects,
+        foreignProspects,
         trackedPlayers,
         settings: {
           currency,
@@ -754,7 +826,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `aura_agency_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `brit_sport_group_backup_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -776,7 +848,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         playerCount={players.length}
-        prospectCount={prospects.length}
+        prospectCount={prospects.length + foreignProspects.length}
         criticalAlertsCount={criticalAlertsCount}
         trackedCount={trackedPlayers.length}
         onOpenAddPlayer={() => {
@@ -824,7 +896,7 @@ export default function App() {
             setIsAddTrackedModalOpen(true);
           }}
           playerCount={players.length}
-          prospectCount={prospects.length}
+          prospectCount={prospects.length + foreignProspects.length}
           criticalAlertsCount={criticalAlertsCount}
           trackedCount={trackedPlayers.length}
           currency={currency}
@@ -845,7 +917,12 @@ export default function App() {
           <DashboardView
             players={players}
             prospects={prospects}
+            foreignProspects={foreignProspects}
             onNavigateTab={setActiveTab}
+            onNavigateForeignProspects={() => {
+              setInTalkSubTab('foreign');
+              setActiveTab('in-talk');
+            }}
             onSelectPlayer={player => setDetailPlayer(player)}
             onSelectProspect={prospect => {
               if (prospect.videoUrl && prospect.videoUrl.trim()) {
@@ -859,6 +936,10 @@ export default function App() {
                 setProspectToEdit(prospect);
                 setIsProspectModalOpen(true);
               }
+            }}
+            onSelectForeignProspect={fp => {
+              setForeignProspectToEdit(fp);
+              setIsForeignProspectModalOpen(true);
             }}
             onOpenQuickExtend={player => setQuickExtendPlayer(player)}
             onOpenAddPlayer={() => {
@@ -894,6 +975,9 @@ export default function App() {
         {activeTab === 'in-talk' && (
           <InTalkWithView
             prospects={prospects}
+            foreignProspects={foreignProspects}
+            subTab={inTalkSubTab}
+            onSubTabChange={setInTalkSubTab}
             onOpenAddProspect={() => {
               setProspectToEdit(null);
               setIsProspectModalOpen(true);
@@ -913,6 +997,16 @@ export default function App() {
             }}
             onOpenConversationLog={prospect => setConversationModalProspect(prospect)}
             onSignProspectToRoster={handleSignProspectToRoster}
+            onOpenAddForeignProspect={() => {
+              setForeignProspectToEdit(null);
+              setIsForeignProspectModalOpen(true);
+            }}
+            onEditForeignProspect={fp => {
+              setForeignProspectToEdit(fp);
+              setIsForeignProspectModalOpen(true);
+            }}
+            onUpdateForeignProspect={handleSaveForeignProspect}
+            onRequestDeleteForeignProspect={handleRequestDeleteForeignProspect}
             language={language}
             currency={currency}
           />
@@ -991,7 +1085,18 @@ export default function App() {
         isOpen={deleteTarget.isOpen}
         onClose={() => setDeleteTarget(prev => ({ ...prev, isOpen: false }))}
         onConfirm={handleConfirmDelete}
-        playerToDelete={deleteTarget.player || deleteTarget.prospect || deleteTarget.trackedPlayer}
+        playerToDelete={
+          deleteTarget.player ||
+          deleteTarget.prospect ||
+          deleteTarget.trackedPlayer ||
+          (deleteTarget.foreignProspect
+            ? {
+                name: deleteTarget.foreignProspect.fullName,
+                clubName: deleteTarget.foreignProspect.currentClub,
+                position: deleteTarget.foreignProspect.primaryPosition
+              }
+            : undefined)
+        }
         countToDelete={deleteTarget.playerIds?.length || deleteTarget.trackedIds?.length}
         language={language}
       />
@@ -1041,6 +1146,18 @@ export default function App() {
         prospectToEdit={prospectToEdit}
         language={language}
         defaultCurrency={currency}
+      />
+
+      {/* International / Foreign Female Prospect Modal */}
+      <ForeignProspectModal
+        isOpen={isForeignProspectModalOpen}
+        onClose={() => {
+          setIsForeignProspectModalOpen(false);
+          setForeignProspectToEdit(null);
+        }}
+        onSave={handleSaveForeignProspect}
+        prospectToEdit={foreignProspectToEdit}
+        language={language}
       />
 
       {/* Player Detail Dossier Modal */}

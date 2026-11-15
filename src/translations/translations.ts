@@ -3,7 +3,7 @@ import { Language, YouthCategory, TrackerCategory, PlayerPosition, PlayerStatus 
 export const TRANSLATIONS = {
   en: {
     // Brand & Header
-    brandName: 'AURA',
+    brandName: 'BRIT SPORT GROUP Management',
     brandSubtitle: "Women's Football Agency",
     dashboard: 'Dashboard',
     agencyRoster: 'Female Roster',
@@ -176,7 +176,7 @@ export const TRANSLATIONS = {
     deleteConfirmMultipleBtn: 'Yes, Delete Selected',
 
     // Footer
-    footerAgency: 'AURA Sports Management',
+    footerAgency: 'BRIT SPORT GROUP Management',
     footerDivision: "Women's Football Representation Division",
     footerRadar: 'Automated 1-Month Contract Alert Radar',
 
@@ -239,7 +239,7 @@ export const TRANSLATIONS = {
 
   he: {
     // Brand & Header
-    brandName: 'AURA',
+    brandName: 'BRIT SPORT GROUP Management',
     brandSubtitle: 'סוכנות כדורגל נשים',
     dashboard: 'לוח בקרה',
     agencyRoster: 'סגל שחקניות',
@@ -412,7 +412,7 @@ export const TRANSLATIONS = {
     deleteConfirmMultipleBtn: 'כן, מחק נבחרות',
 
     // Footer
-    footerAgency: 'AURA ניהול ספורט',
+    footerAgency: 'BRIT SPORT GROUP Management',
     footerDivision: 'חטיבת ייצוג כדורגל נשים',
     footerRadar: 'מכ״ם התראות חודש מראש לסיום חוזה',
 

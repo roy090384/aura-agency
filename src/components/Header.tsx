@@ -62,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2.5 text-left group"
             >
               <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-sm shadow-emerald-500/20 group-hover:bg-emerald-500 transition-colors">
-                A
+                B
               </div>
               <div>
                 <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white block leading-none">

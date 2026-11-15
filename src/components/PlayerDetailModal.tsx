@@ -294,7 +294,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700 dark:text-slate-300">
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-emerald-600" />
-                    <span>{player.contactEmail || 'agency-rep@mgmt-aura.com'}</span>
+                    <span>{player.contactEmail || 'agency-rep@britsportgroup.com'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-emerald-600" />

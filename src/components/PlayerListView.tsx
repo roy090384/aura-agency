@@ -160,7 +160,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `AURA_Agency_Roster_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `BRIT_SPORT_GROUP_Female_Roster_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

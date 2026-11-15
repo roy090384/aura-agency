@@ -1,5 +1,10 @@
 import React from 'react';
-import { Player, TalkProspect, Language, Currency, NavigationTab } from '../types/player';
+import { Player, TalkProspect, ForeignProspect, Language, Currency, NavigationTab } from '../types/player';
+import {
+  FOREIGN_STATUS_STALE_DAYS,
+  getDaysSinceForeignStatusChange,
+  isForeignProspectStatusStale
+} from '../utils/foreignProspectUtils';
 import { 
   getContractDaysRemaining, 
   getContractUrgency, 
@@ -35,9 +40,12 @@ import { findCountry } from '../data/countries';
 interface DashboardViewProps {
   players: Player[];
   prospects: TalkProspect[];
+  foreignProspects: ForeignProspect[];
   onNavigateTab: (tab: NavigationTab) => void;
+  onNavigateForeignProspects: () => void;
   onSelectPlayer: (player: Player) => void;
   onSelectProspect: (prospect: TalkProspect) => void;
+  onSelectForeignProspect: (prospect: ForeignProspect) => void;
   onOpenQuickExtend: (player: Player) => void;
   onOpenAddPlayer: () => void;
   language: Language;
@@ -47,15 +55,19 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   players,
   prospects,
+  foreignProspects,
   onNavigateTab,
+  onNavigateForeignProspects,
   onSelectPlayer,
   onSelectProspect,
+  onSelectForeignProspect,
   onOpenQuickExtend,
   onOpenAddPlayer,
   language,
   currency = 'EUR'
 }) => {
   const t = TRANSLATIONS[language];
+  const isHe = language === 'he';
 
   // Urgent contracts: Expiring in <= 30 days (1 month alert) or already expired
   const criticalExpiringPlayers = players
@@ -89,6 +101,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const upcomingBirthdays = getUpcomingBirthdays(players, 30);
   const todayBirthdays = upcomingBirthdays.filter(b => b.isToday);
   const thisWeekBirthdays = upcomingBirthdays.filter(b => b.isThisWeek);
+
+  // International / Foreign Prospects status staleness (unchanged for >= 5 days)
+  const staleForeignProspects = foreignProspects
+    .filter(fp => isForeignProspectStatusStale(fp, FOREIGN_STATUS_STALE_DAYS))
+    .sort((a, b) => getDaysSinceForeignStatusChange(b) - getDaysSinceForeignStatusChange(a));
+  const totalForeignClubOffers = foreignProspects.reduce(
+    (sum, fp) => sum + (fp.clubsOfferedTo?.length || 0),
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -379,6 +400,174 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* International / Foreign Female Prospects Widget (5+ Days Status Unchanged Monitor) */}
+      <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className={`p-2.5 rounded-xl shrink-0 ${
+              staleForeignProspects.length > 0
+                ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300'
+                : 'bg-sky-100 dark:bg-sky-950/70 text-sky-700 dark:text-sky-300'
+            }`}>
+              <Globe className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                  {isHe ? 'שחקניות זרות ובינלאומיות' : 'International / Foreign Prospects'}
+                </h2>
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full font-mono-tabular ${
+                  staleForeignProspects.length > 0
+                    ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                    : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                }`}>
+                  {staleForeignProspects.length}{' '}
+                  {isHe ? 'ללא שינוי סטטוס 5+ ימים' : 'unchanged 5+ days'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {isHe
+                  ? 'מעקב שחקניות זרות בשיחות לייצוג ושיבוץ בישראל ובאירופה — התראה על סטטוס שלא התעדכן מעל 5 ימים.'
+                  : 'Tracks foreign prospects for Israel & Europe placement and highlights players whose status has not changed in 5+ days.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onNavigateForeignProspects}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-sky-700 hover:bg-sky-800 dark:bg-sky-600 dark:hover:bg-sky-500 text-white transition-colors self-start sm:self-center shrink-0"
+          >
+            <span>
+              {isHe
+                ? `פתח מעקב שחקניות זרות (${foreignProspects.length})`
+                : `Open Foreign Prospects (${foreignProspects.length})`}
+            </span>
+            <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+          </button>
+        </div>
+
+        {/* 3 Summary Stat Tiles */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className={`p-3.5 rounded-xl border ${
+            staleForeignProspects.length > 0
+              ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800/70'
+              : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                staleForeignProspects.length > 0
+                  ? 'text-amber-800 dark:text-amber-300'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}>
+                {isHe ? 'סטטוס ללא שינוי (5+ ימים)' : 'No Status Change (5+ Days)'}
+              </span>
+              <Clock className={`w-4 h-4 ${
+                staleForeignProspects.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'
+              }`} />
+            </div>
+            <div className={`text-2xl font-extrabold font-mono-tabular mt-1 ${
+              staleForeignProspects.length > 0
+                ? 'text-amber-700 dark:text-amber-300'
+                : 'text-slate-900 dark:text-white'
+            }`}>
+              {staleForeignProspects.length}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              {staleForeignProspects.length > 0
+                ? isHe
+                  ? 'שחקניות הממתינות לעדכון סטטוס / מעקב'
+                  : 'Players needing status follow-up'
+                : isHe
+                ? 'כל הסטטוסים מעודכנים ב-5 הימים האחרונים'
+                : 'All statuses updated within 5 days'}
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl border bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {isHe ? 'סה״כ שחקניות זרות' : 'Total Foreign Prospects'}
+              </span>
+              <Globe className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            </div>
+            <div className="text-2xl font-extrabold font-mono-tabular text-slate-900 dark:text-white mt-1">
+              {foreignProspects.length}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              {isHe ? 'בשיחות ייצוג ושיבוץ' : 'Active international pipeline'}
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl border bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {isHe ? 'הצעות לקבוצות' : 'Club Placement Offers'}
+              </span>
+              <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="text-2xl font-extrabold font-mono-tabular text-slate-900 dark:text-white mt-1">
+              {totalForeignClubOffers}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              {isHe ? 'פניות לקבוצות בישראל ובאירופה' : 'Logged pitches across Israel & Europe'}
+            </div>
+          </div>
+        </div>
+
+        {/* Actionable List of Players Whose Status Has Not Changed for 5+ Days */}
+        {staleForeignProspects.length > 0 ? (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 divide-y divide-amber-100 dark:divide-amber-900/40 overflow-hidden bg-amber-50/30 dark:bg-amber-950/10">
+            {staleForeignProspects.slice(0, 5).map(fp => {
+              const daysStale = getDaysSinceForeignStatusChange(fp);
+              return (
+                <div
+                  key={fp.id}
+                  onClick={() => onSelectForeignProspect(fp)}
+                  className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-amber-50/80 dark:hover:bg-amber-950/30 cursor-pointer transition-colors"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm text-slate-900 dark:text-white">
+                        {fp.fullName}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {fp.nationalityPassport}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-300">
+                        {fp.negotiationStatus}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {fp.currentClub} · {POSITION_TRANSLATIONS[language][fp.primaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || fp.primaryPosition}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-xs font-bold font-mono-tabular">
+                      <Clock className="w-3.5 h-3.5" />
+                      {isHe ? `${daysStale} ימים ללא שינוי` : `${daysStale}d unchanged`}
+                    </span>
+                    <span className="text-xs font-semibold text-sky-700 dark:text-sky-400">
+                      {isHe ? 'עדכן סטטוס' : 'Update'} &rarr;
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : foreignProspects.length > 0 ? (
+          <div className="px-4 py-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              {isHe
+                ? `כל ${foreignProspects.length} השחקניות הזרות עודכנו במהלך 5 הימים האחרונים.`
+                : `All ${foreignProspects.length} international/foreign prospects have had status activity within the last 5 days.`}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {/* Main 2-Column Split: Attention View & Active Recruitment Pipeline */}

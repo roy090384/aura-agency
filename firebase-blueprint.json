@@ -108,6 +108,34 @@
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["currency", "language", "userId"]
+    },
+    "ForeignProspect": {
+      "title": "ForeignProspect",
+      "description": "Represents an international/foreign female player being negotiated with for agency signing and placement in Israel or Europe.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 128 },
+        "nationalityPassport": { "type": "string", "maxLength": 128 },
+        "passportCategory": { "type": "string", "maxLength": 64 },
+        "age": { "type": "number" },
+        "birthDate": { "type": "string", "maxLength": 32 },
+        "primaryPosition": { "type": "string", "maxLength": 64 },
+        "secondaryPosition": { "type": "string", "maxLength": 64 },
+        "currentClub": { "type": "string", "maxLength": 128 },
+        "currentLeague": { "type": "string", "maxLength": 128 },
+        "targetMarkets": { "type": "array" },
+        "negotiationStatus": { "type": "string", "maxLength": 64 },
+        "clubsOfferedTo": { "type": "array" },
+        "salaryExpectations": { "type": "string", "maxLength": 256 },
+        "profileLink": { "type": "string", "maxLength": 2048 },
+        "agentNotes": { "type": "string", "maxLength": 4096 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 },
+        "statusUpdatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "fullName", "nationalityPassport", "primaryPosition", "negotiationStatus", "userId"]
     }
   },
   "firestore": {
@@ -126,6 +154,10 @@
     "/users/{userId}/settings/preferences": {
       "schema": { "$ref": "#/entities/AgencyPreferences" },
       "description": "Personalized agency configuration and display preferences."
+    },
+    "/users/{userId}/foreignProspects/{foreignProspectId}": {
+      "schema": { "$ref": "#/entities/ForeignProspect" },
+      "description": "International / foreign female player prospects for Israel and Europe placement."
     }
   }
 }

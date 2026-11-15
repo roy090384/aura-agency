@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { TalkProspect, ProspectScope, TalkStage, YouthCategory, Language, Currency } from '../types/player';
+import { TalkProspect, ForeignProspect, ProspectScope, TalkStage, YouthCategory, Language, Currency } from '../types/player';
+import { ForeignProspectsSubView } from './ForeignProspectsSubView';
 import { 
   TRANSLATIONS, 
   POSITION_TRANSLATIONS, 
@@ -31,28 +32,48 @@ import {
 
 interface InTalkWithViewProps {
   prospects: TalkProspect[];
+  foreignProspects: ForeignProspect[];
   onOpenAddProspect: () => void;
   onEditProspect: (prospect: TalkProspect) => void;
   onRequestDeleteProspect: (prospect: TalkProspect) => void;
   onWatchVideo: (prospect: TalkProspect) => void;
   onOpenConversationLog: (prospect: TalkProspect) => void;
   onSignProspectToRoster: (prospect: TalkProspect) => void;
+  onOpenAddForeignProspect: () => void;
+  onEditForeignProspect: (prospect: ForeignProspect) => void;
+  onUpdateForeignProspect: (prospect: ForeignProspect) => void;
+  onRequestDeleteForeignProspect: (prospect: ForeignProspect) => void;
+  subTab?: 'candidates' | 'foreign';
+  onSubTabChange?: (tab: 'candidates' | 'foreign') => void;
   language: Language;
   currency: Currency;
 }
 
 export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
   prospects,
+  foreignProspects,
   onOpenAddProspect,
   onEditProspect,
   onRequestDeleteProspect,
   onWatchVideo,
   onOpenConversationLog,
   onSignProspectToRoster,
+  onOpenAddForeignProspect,
+  onEditForeignProspect,
+  onUpdateForeignProspect,
+  onRequestDeleteForeignProspect,
+  subTab,
+  onSubTabChange,
   language,
   currency
 }) => {
   const t = TRANSLATIONS[language];
+  const [internalSubTab, setInternalSubTab] = useState<'candidates' | 'foreign'>('candidates');
+  const inTalkSubTab = subTab ?? internalSubTab;
+  const setInTalkSubTab = (tab: 'candidates' | 'foreign') => {
+    setInternalSubTab(tab);
+    onSubTabChange?.(tab);
+  };
   const [scopeFilter, setScopeFilter] = useState<'ALL' | 'Local' | 'International'>('ALL');
   const [stageFilter, setStageFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
@@ -119,14 +140,72 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
         </div>
 
         <button
-          onClick={onOpenAddProspect}
+          onClick={inTalkSubTab === 'foreign' ? onOpenAddForeignProspect : onOpenAddProspect}
           className="flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white shadow-xs transition-colors self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
-          <span>{t.addTalkProspect}</span>
+          <span>
+            {inTalkSubTab === 'foreign'
+              ? (language === 'he' ? 'הוסף שחקנית זרה' : 'Add Foreign Prospect')
+              : t.addTalkProspect}
+          </span>
         </button>
       </div>
 
+      {/* Sub-Screen Switcher: Agency Candidates vs International / Foreign Female Prospects */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xs w-fit">
+        <button
+          type="button"
+          onClick={() => setInTalkSubTab('candidates')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+            inTalkSubTab === 'candidates'
+              ? 'bg-emerald-700 text-white shadow-xs dark:bg-emerald-600'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>{language === 'he' ? 'מועמדות לייצוג בסוכנות' : 'Agency Candidates'}</span>
+          <span className={`px-1.5 py-0.5 text-[11px] rounded-full font-mono-tabular ${
+            inTalkSubTab === 'candidates'
+              ? 'bg-emerald-800/60 text-white'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+          }`}>
+            {prospects.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setInTalkSubTab('foreign')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+            inTalkSubTab === 'foreign'
+              ? 'bg-sky-700 text-white shadow-xs dark:bg-sky-600'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          <span>{language === 'he' ? 'שחקניות זרות ובינלאומיות (ישראל / אירופה)' : 'International / Foreign Prospects'}</span>
+          <span className={`px-1.5 py-0.5 text-[11px] rounded-full font-mono-tabular ${
+            inTalkSubTab === 'foreign'
+              ? 'bg-sky-800/60 text-white'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+          }`}>
+            {foreignProspects.length}
+          </span>
+        </button>
+      </div>
+
+      {inTalkSubTab === 'foreign' ? (
+        <ForeignProspectsSubView
+          foreignProspects={foreignProspects}
+          onOpenAdd={onOpenAddForeignProspect}
+          onEdit={onEditForeignProspect}
+          onUpdateProspect={onUpdateForeignProspect}
+          onRequestDelete={onRequestDeleteForeignProspect}
+          language={language}
+        />
+      ) : (
+        <>
       {/* Scope Segmented Filter & Controls */}
       <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
         
@@ -590,6 +669,8 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
             );
           })}
         </div>
+      )}
+        </>
       )}
 
     </div>
