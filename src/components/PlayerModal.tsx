@@ -4,6 +4,7 @@ import { TRANSLATIONS, POSITION_TRANSLATIONS, getYouthBadgeColor } from '../tran
 import { X, User, Calendar, Shield, DollarSign, Video, Mail, Phone, Check, Tag, Cake } from 'lucide-react';
 import { NationalitySelect } from './NationalitySelect';
 import { WomenClubSelect } from './WomenClubSelect';
+import { MaleClubSelect } from './MaleClubSelect';
 import { calculateAgeFromBirthDate } from '../utils/birthdayAlerts';
 
 interface PlayerModalProps {
@@ -12,6 +13,7 @@ interface PlayerModalProps {
   onSave: (player: Player) => void;
   playerToEdit?: Player | null;
   language?: Language;
+  rosterType?: 'female' | 'male';
 }
 
 const POSITIONS: PlayerPosition[] = [
@@ -50,22 +52,25 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
   onClose,
   onSave,
   playerToEdit,
-  language = 'en'
+  language = 'en',
+  rosterType = 'female'
 }) => {
   const t = TRANSLATIONS[language];
+  const isMale = rosterType === 'male';
   const [name, setName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
-  const [age, setAge] = useState<number>(22);
-  const [birthDate, setBirthDate] = useState('2004-01-01');
-  const [nationality, setNationality] = useState('England');
-  const [countryCode, setCountryCode] = useState('GB');
+  const [age, setAge] = useState<number>(isMale ? 17 : 22);
+  const [birthDate, setBirthDate] = useState(isMale ? '2009-01-01' : '2004-01-01');
+  const [nationality, setNationality] = useState(isMale ? 'Israel' : 'England');
+  const [countryCode, setCountryCode] = useState(isMale ? 'IL' : 'GB');
   const [clubName, setClubName] = useState('');
-  const [league, setLeague] = useState('Barclays Women\'s Super League');
+  const [league, setLeague] = useState(isMale ? 'Israeli Youth Premier League' : "Barclays Women's Super League");
   const [position, setPosition] = useState<PlayerPosition>('Central Midfield (CM)');
-  const [youthCategory, setYouthCategory] = useState<YouthCategory>('Senior');
+  const [youthCategory, setYouthCategory] = useState<YouthCategory>(isMale ? 'U17' : 'Senior');
   const [jerseyNumber, setJerseyNumber] = useState<number>(10);
   const [dominantFoot, setDominantFoot] = useState<'Right' | 'Left' | 'Both'>('Right');
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [joinedCurrentClubDate, setJoinedCurrentClubDate] = useState('');
   
   // Set default expiry to 1 year from now
   const defaultExpiry = new Date();
@@ -73,7 +78,7 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
   const [contractExpiryDate, setContractExpiryDate] = useState(defaultExpiry.toISOString().split('T')[0]);
 
   const [status, setStatus] = useState<PlayerStatus>('Active');
-  const [marketValue, setMarketValue] = useState('€450,000');
+  const [marketValue, setMarketValue] = useState(isMale ? '€150,000' : '€450,000');
   const [agencyFeePct, setAgencyFeePct] = useState<number>(10);
   const [representationType, setRepresentationType] = useState<'Exclusive' | 'Co-representation' | 'Commercial Only'>('Exclusive');
   const [contactEmail, setContactEmail] = useState('');
@@ -92,10 +97,11 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
       setClubName(playerToEdit.clubName);
       setLeague(playerToEdit.league);
       setPosition(playerToEdit.position);
-      setYouthCategory(playerToEdit.youthCategory || 'Senior');
+      setYouthCategory(playerToEdit.youthCategory || (isMale ? 'U17' : 'Senior'));
       setJerseyNumber(playerToEdit.jerseyNumber);
       setDominantFoot(playerToEdit.dominantFoot);
       setContractStartDate(playerToEdit.contractStartDate);
+      setJoinedCurrentClubDate(playerToEdit.joinedCurrentClubDate || '');
       setContractExpiryDate(playerToEdit.contractExpiryDate);
       setStatus(playerToEdit.status);
       setMarketValue(playerToEdit.marketValue);
@@ -108,22 +114,23 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
     } else {
       setName('');
       setPhotoUrl('');
-      setAge(22);
-      setBirthDate('2004-01-01');
-      setNationality('England');
-      setCountryCode('GB');
+      setAge(isMale ? 17 : 22);
+      setBirthDate(isMale ? '2009-01-01' : '2004-01-01');
+      setNationality(isMale ? 'Israel' : 'England');
+      setCountryCode(isMale ? 'IL' : 'GB');
       setClubName('');
-      setLeague('Barclays Women\'s Super League');
+      setLeague(isMale ? 'Israeli Youth Premier League' : "Barclays Women's Super League");
       setPosition('Central Midfield (CM)');
-      setYouthCategory('Senior');
+      setYouthCategory(isMale ? 'U17' : 'Senior');
       setJerseyNumber(10);
       setDominantFoot('Right');
       setContractStartDate(new Date().toISOString().split('T')[0]);
+      setJoinedCurrentClubDate('');
       const nextYear = new Date();
       nextYear.setFullYear(nextYear.getFullYear() + 2);
       setContractExpiryDate(nextYear.toISOString().split('T')[0]);
       setStatus('Active');
-      setMarketValue('€450,000');
+      setMarketValue(isMale ? '€150,000' : '€450,000');
       setAgencyFeePct(10);
       setRepresentationType('Exclusive');
       setContactEmail('');
@@ -131,7 +138,7 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
       setVideoHighlightsUrl('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
       setNotes('');
     }
-  }, [playerToEdit, isOpen]);
+  }, [playerToEdit, isOpen, isMale]);
 
   if (!isOpen) return null;
 
@@ -143,13 +150,13 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
     }
 
     const savedPlayer: Player = {
-      id: playerToEdit ? playerToEdit.id : `ply-${Date.now()}`,
+      id: playerToEdit ? playerToEdit.id : `${isMale ? 'mply' : 'ply'}-${Date.now()}`,
       name: name.trim(),
       photoUrl,
       age: Number(age) || 20,
       birthDate,
-      nationality: nationality.trim() || 'England',
-      countryCode: countryCode.trim() || 'GB',
+      nationality: nationality.trim() || (isMale ? 'Israel' : 'England'),
+      countryCode: countryCode.trim() || (isMale ? 'IL' : 'GB'),
       clubName: clubName.trim(),
       league: league.trim() || 'Top Flight',
       position,
@@ -158,8 +165,9 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
       dominantFoot,
       contractStartDate,
       contractExpiryDate,
+      joinedCurrentClubDate: joinedCurrentClubDate.trim() || undefined,
       status,
-      marketValue: marketValue.trim() || '€300,000',
+      marketValue: marketValue.trim() || (isMale ? '€150,000' : '€300,000'),
       agencyFeePct: Number(agencyFeePct) || 10,
       representationType,
       contactEmail: contactEmail.trim(),
@@ -181,7 +189,21 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              {playerToEdit ? 'Edit Player Representation Dossier' : 'Add New Female Player to Agency'}
+              {playerToEdit
+                ? isMale
+                  ? language === 'he'
+                    ? 'עריכת תיק שחקן'
+                    : 'Edit Male Player Representation Dossier'
+                  : language === 'he'
+                  ? 'עריכת תיק שחקנית'
+                  : 'Edit Player Representation Dossier'
+                : isMale
+                ? language === 'he'
+                  ? 'הוספת שחקן חדש לסגל בנים ונוער'
+                  : 'Add New Male / Youth Player to Agency'
+                : language === 'he'
+                ? 'הוספת שחקנית חדשה לסוכנות'
+                : 'Add New Female Player to Agency'}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Maintain agency mandate dates, club contracts, and age tier (Senior, U19, U17, U15).
@@ -251,29 +273,44 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
               </div>
 
               <div>
-                <WomenClubSelect
-                  value={clubName}
-                  onChange={(selectedClub, suggestedLeague) => {
-                    setClubName(selectedClub);
-                    if (suggestedLeague) {
-                      setLeague(suggestedLeague);
-                    }
-                  }}
-                  language={language}
-                  label={language === 'he' ? 'קבוצה נוכחית' : 'Current Club'}
-                  required
-                />
+                {isMale ? (
+                  <MaleClubSelect
+                    value={clubName}
+                    onChange={(selectedClub, suggestedLeague) => {
+                      setClubName(selectedClub);
+                      if (suggestedLeague) {
+                        setLeague(suggestedLeague);
+                      }
+                    }}
+                    language={language}
+                    label={language === 'he' ? 'קבוצה / מחלקת נוער נוכחית' : 'Current Club / Youth Dept'}
+                    required
+                  />
+                ) : (
+                  <WomenClubSelect
+                    value={clubName}
+                    onChange={(selectedClub, suggestedLeague) => {
+                      setClubName(selectedClub);
+                      if (suggestedLeague) {
+                        setLeague(suggestedLeague);
+                      }
+                    }}
+                    language={language}
+                    label={language === 'he' ? 'קבוצה נוכחית' : 'Current Club'}
+                    required
+                  />
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  League
+                  {language === 'he' ? 'ליגה' : 'League'}
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. WSL, NWSL, Liga F"
+                  placeholder={isMale ? 'e.g. Israeli Youth Premier League' : 'e.g. WSL, NWSL, Liga F'}
                   value={league}
                   onChange={e => setLeague(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -281,8 +318,22 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{t.joinedCurrentClub}</span>
+                </label>
+                <input
+                  type="date"
+                  max={new Date().toISOString().split('T')[0]}
+                  value={joinedCurrentClubDate}
+                  onChange={e => setJoinedCurrentClubDate(e.target.value)}
+                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono-tabular"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Playing Position *
+                  {language === 'he' ? 'עמדה *' : 'Playing Position *'}
                 </label>
                 <select
                   value={position}
@@ -297,7 +348,7 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Jersey #
+                  {language === 'he' ? 'מספר חולצה' : 'Jersey #'}
                 </label>
                 <input
                   type="number"

@@ -7,10 +7,12 @@ export const TRANSLATIONS = {
     brandSubtitle: "Women's Football Agency",
     dashboard: 'Dashboard',
     agencyRoster: 'Female Roster',
+    maleRoster: 'Male Roster',
     inTalkWith: 'In Talk With',
     contractAlerts: 'Contract Alerts',
     trainingCompensation: 'Training Compensation',
     addPlayer: 'Add Player',
+    addMalePlayer: 'Add Male Player',
     addTalkProspect: 'Add Talk Prospect',
     languageSwitch: 'עברית',
     currency: 'Currency',
@@ -75,7 +77,11 @@ export const TRANSLATIONS = {
 
     // Roster / Player List
     rosterTitle: 'Female Roster',
+    maleRosterTitle: 'Male Roster',
     rosterSubtitle: 'signed athletes',
+    maleRosterSubtitle: 'signed male & youth athletes',
+    joinedCurrentClub: 'Joined Current Club',
+    joinedClubShort: 'Joined Club',
     contracts1MonthPriority: 'contracts with 1-month renewal priority',
     searchPlaceholder: 'Search player, club, position, nation...',
     allPositions: 'All Positions',
@@ -243,10 +249,12 @@ export const TRANSLATIONS = {
     brandSubtitle: 'סוכנות כדורגל נשים',
     dashboard: 'לוח בקרה',
     agencyRoster: 'סגל שחקניות',
+    maleRoster: 'סגל בנים ונוער',
     inTalkWith: 'בשיחות עם שחקניות',
     contractAlerts: 'התראות חוזים',
     trainingCompensation: 'מחשבון דמי השבחה',
     addPlayer: 'הוסף שחקנית',
+    addMalePlayer: 'הוסף שחקן',
     addTalkProspect: 'הוסף מועמדת לייצוג',
     languageSwitch: 'English',
     currency: 'מטבע',
@@ -311,7 +319,11 @@ export const TRANSLATIONS = {
 
     // Roster / Player List
     rosterTitle: 'סגל שחקניות',
+    maleRosterTitle: 'סגל בנים ונוער',
     rosterSubtitle: 'שחקניות חתומות',
+    maleRosterSubtitle: 'שחקנים חתומים',
+    joinedCurrentClub: 'תאריך הצטרפות למועדון',
+    joinedClubShort: 'הצטרפות למועדון',
     contracts1MonthPriority: 'חוזים בעדיפות חידוש של חודש אחד',
     searchPlaceholder: 'חיפוש שחקנית, מועדון, עמדה, לאום...',
     allPositions: 'כל העמדות',
@@ -491,7 +503,7 @@ export const POSITION_TRANSLATIONS: Record<Language, Record<string, string>> = {
   }
 };
 
-// Status mapping for Hebrew
+// Status mapping for Hebrew (Female)
 export const STATUS_TRANSLATIONS: Record<Language, Record<string, string>> = {
   en: {},
   he: {
@@ -502,6 +514,37 @@ export const STATUS_TRANSLATIONS: Record<Language, Record<string, string>> = {
     'Pending Renewal': 'בהמתנה לחידוש',
     'Negotiating': 'במשא ומתן',
     'Transferred': 'הועברה'
+  }
+};
+
+// Position mapping for Hebrew (Male)
+export const MALE_POSITION_TRANSLATIONS: Record<Language, Record<string, string>> = {
+  en: {},
+  he: {
+    'Goalkeeper (GK)': 'שוער (GK)',
+    'Centre-Back (CB)': 'בלם (CB)',
+    'Left-Back (LB)': 'מגן שמאלי (LB)',
+    'Right-Back (RB)': 'מגן ימני (RB)',
+    'Defensive Midfield (CDM)': 'קשר אחורי (CDM)',
+    'Central Midfield (CM)': 'קשר מרכזי (CM)',
+    'Attacking Midfield (CAM)': 'קשר התקפי (CAM)',
+    'Left Winger (LW)': 'כנף שמאל (LW)',
+    'Right Winger (RW)': 'כנף ימין (RW)',
+    'Striker (ST)': 'חלוץ (ST)'
+  }
+};
+
+// Status mapping for Hebrew (Male)
+export const MALE_STATUS_TRANSLATIONS: Record<Language, Record<string, string>> = {
+  en: {},
+  he: {
+    'Active': 'פעיל',
+    'Injured': 'פצוע',
+    'On Loan': 'מושאל',
+    'Free Agent': 'שחקן חופשי',
+    'Pending Renewal': 'בהמתנה לחידוש',
+    'Negotiating': 'במשא ומתן',
+    'Transferred': 'הועבר'
   }
 };
 

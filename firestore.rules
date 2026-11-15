@@ -29,8 +29,19 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if isOwner(userId);
 
-      // Agency represented players
+      // Agency represented female players
       match /players/{playerId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) 
+          && isValidId(playerId)
+          && request.resource.data.userId == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 128;
+      }
+
+      // Agency represented male / youth players
+      match /malePlayers/{playerId} {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId) 
           && isValidId(playerId)

@@ -27,10 +27,12 @@ interface SidebarProps {
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
   playerCount: number;
+  malePlayerCount: number;
   prospectCount: number;
   criticalAlertsCount: number;
   trackedCount: number;
   onOpenAddPlayer: () => void;
+  onOpenAddMalePlayer: () => void;
   onOpenAddProspect: () => void;
   onOpenAddTrackedPlayer: () => void;
   isDarkMode: boolean;
@@ -52,10 +54,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   playerCount,
+  malePlayerCount,
   prospectCount,
   criticalAlertsCount,
   trackedCount,
   onOpenAddPlayer,
+  onOpenAddMalePlayer,
   onOpenAddProspect,
   onOpenAddTrackedPlayer,
   isDarkMode,
@@ -92,6 +96,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.agencyRoster,
       icon: Users,
       count: playerCount,
+      color: 'emerald'
+    },
+    {
+      id: 'male-roster' as NavigationTab,
+      label: t.maleRoster,
+      icon: Users,
+      count: malePlayerCount,
       color: 'emerald'
     },
     {
@@ -241,6 +252,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Plus className="w-3.5 h-3.5 text-emerald-600" />
               <span>{t.addPlayer}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onOpenAddMalePlayer();
+                onCloseMobile();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5 text-teal-600" />
+              <span>{t.addMalePlayer}</span>
             </button>
 
             <button

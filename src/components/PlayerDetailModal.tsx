@@ -4,7 +4,8 @@ import {
   getContractDaysRemaining, 
   getContractUrgency, 
   getUrgencyBadgeConfig, 
-  formatDatePretty 
+  formatDatePretty,
+  formatJoinedClubDate
 } from '../utils/contractAlerts';
 import { 
   TRANSLATIONS, 
@@ -245,7 +246,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                 </div>
 
                 {/* Country Card */}
-                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 col-span-2">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
                   <span className="text-[11px] text-slate-500 block">Nationality & Country Code</span>
                   <strong className="text-sm text-slate-900 dark:text-white flex items-center gap-1.5 mt-0.5">
                     {country && <span className="text-base">{country.flag}</span>}
@@ -253,6 +254,17 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                     {player.countryCode && (
                       <span className="text-xs text-slate-400 font-mono">({player.countryCode})</span>
                     )}
+                  </strong>
+                </div>
+
+                {/* Joined Current Club Card */}
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+                  <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-emerald-600" />
+                    <span>{t.joinedCurrentClub}</span>
+                  </span>
+                  <strong className="text-sm text-slate-900 dark:text-white font-mono-tabular block mt-0.5">
+                    {formatJoinedClubDate(player.joinedCurrentClubDate) || (language === 'he' ? 'לא הוגדר' : 'Not specified')}
                   </strong>
                 </div>
               </div>

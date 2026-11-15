@@ -31,6 +31,10 @@ import {
   savePlayerToFirestore, 
   deletePlayerFromFirestore, 
   deleteMultiplePlayersFromFirestore,
+  subscribeToMalePlayers,
+  saveMalePlayerToFirestore,
+  deleteMalePlayerFromFirestore,
+  deleteMultipleMalePlayersFromFirestore,
   subscribeToProspects, 
   saveProspectToFirestore, 
   deleteProspectFromFirestore,
@@ -80,7 +84,7 @@ export default function App() {
     return 'EUR';
   });
 
-  // User-owned Players State (Clean start, no non-real players)
+  // User-owned Female Roster Players State
   const [players, setPlayers] = useState<Player[]>(() => {
     try {
       const stored = localStorage.getItem('aura_agency_players_v4');
@@ -89,6 +93,17 @@ export default function App() {
       console.error('Failed to load players from storage', e);
     }
     return INITIAL_PLAYERS;
+  });
+
+  // User-owned Male / Youth Roster Players State
+  const [malePlayers, setMalePlayers] = useState<Player[]>(() => {
+    try {
+      const stored = localStorage.getItem('aura_male_players_v1');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error('Failed to load male players from storage', e);
+    }
+    return [];
   });
 
   // User-owned Prospects State
@@ -147,6 +162,7 @@ export default function App() {
 
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [playerToEdit, setPlayerToEdit] = useState<Player | null>(null);
+  const [playerModalRosterType, setPlayerModalRosterType] = useState<'female' | 'male'>('female');
 
   const [isProspectModalOpen, setIsProspectModalOpen] = useState(false);
   const [prospectToEdit, setProspectToEdit] = useState<TalkProspect | null>(null);
@@ -155,7 +171,9 @@ export default function App() {
   const [foreignProspectToEdit, setForeignProspectToEdit] = useState<ForeignProspect | null>(null);
 
   const [detailPlayer, setDetailPlayer] = useState<Player | null>(null);
+  const [detailPlayerRosterType, setDetailPlayerRosterType] = useState<'female' | 'male'>('female');
   const [quickExtendPlayer, setQuickExtendPlayer] = useState<Player | null>(null);
+  const [quickExtendRosterType, setQuickExtendRosterType] = useState<'female' | 'male'>('female');
 
   // Cloud Database Authentication & Diagnostic Modal
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -164,7 +182,15 @@ export default function App() {
   // Easy Deletion states
   const [deleteTarget, setDeleteTarget] = useState<{
     isOpen: boolean;
-    type: 'single_player' | 'multiple_players' | 'single_prospect' | 'single_foreign_prospect' | 'single_tracked' | 'multiple_tracked';
+    type:
+      | 'single_player'
+      | 'multiple_players'
+      | 'single_male_player'
+      | 'multiple_male_players'
+      | 'single_prospect'
+      | 'single_foreign_prospect'
+      | 'single_tracked'
+      | 'multiple_tracked';
     player?: Player;
     playerIds?: string[];
     prospect?: TalkProspect;
@@ -233,7 +259,7 @@ export default function App() {
     }
   }, [currency]);
 
-  // Persist players
+  // Persist female players
   useEffect(() => {
     try {
       localStorage.setItem('aura_agency_players_v4', JSON.stringify(players));
@@ -241,6 +267,15 @@ export default function App() {
       console.error('Failed to save players', e);
     }
   }, [players]);
+
+  // Persist male players
+  useEffect(() => {
+    try {
+      localStorage.setItem('aura_male_players_v1', JSON.stringify(malePlayers));
+    } catch (e) {
+      console.error('Failed to save male players', e);
+    }
+  }, [malePlayers]);
 
   // Persist prospects
   useEffect(() => {
@@ -272,6 +307,7 @@ export default function App() {
   // Firebase Auth and real-time Firestore synchronization
   useEffect(() => {
     let unsubPlayers: (() => void) | undefined;
+    let unsubMalePlayers: (() => void) | undefined;
     let unsubProspects: (() => void) | undefined;
     let unsubTracked: (() => void) | undefined;
     let unsubForeign: (() => void) | undefined;
@@ -281,7 +317,7 @@ export default function App() {
       if (user) {
         setIsCloudSyncing(true);
         try {
-          await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects);
+          await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects, malePlayers);
         } catch (err) {
           console.error('Error syncing initial data:', err);
         } finally {
@@ -290,6 +326,10 @@ export default function App() {
 
         unsubPlayers = subscribeToPlayers(user.uid, (remotePlayers) => {
           setPlayers(remotePlayers);
+        });
+
+        unsubMalePlayers = subscribeToMalePlayers(user.uid, (remoteMalePlayers) => {
+          setMalePlayers(remoteMalePlayers);
         });
 
         unsubProspects = subscribeToProspects(user.uid, (remoteProspects) => {
@@ -305,6 +345,7 @@ export default function App() {
         });
       } else {
         if (unsubPlayers) unsubPlayers();
+        if (unsubMalePlayers) unsubMalePlayers();
         if (unsubProspects) unsubProspects();
         if (unsubTracked) unsubTracked();
         if (unsubForeign) unsubForeign();
@@ -314,6 +355,7 @@ export default function App() {
     return () => {
       unsubscribeAuth();
       if (unsubPlayers) unsubPlayers();
+      if (unsubMalePlayers) unsubMalePlayers();
       if (unsubProspects) unsubProspects();
       if (unsubTracked) unsubTracked();
       if (unsubForeign) unsubForeign();
@@ -392,8 +434,27 @@ export default function App() {
     return days <= 30;
   }).length;
 
-  // Handlers for Players
+  // Handlers for Female Roster Players
   const handleSavePlayer = (savedPlayer: Player) => {
+    if (playerModalRosterType === 'male') {
+      setMalePlayers(prev => {
+        const idx = prev.findIndex(p => p.id === savedPlayer.id);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = savedPlayer;
+          return updated;
+        }
+        return [savedPlayer, ...prev];
+      });
+      if (currentUser) {
+        saveMalePlayerToFirestore(currentUser.uid, savedPlayer).catch(console.error);
+      }
+      showToast(language === 'he'
+        ? `פרטי השחקן "${savedPlayer.name}" נשמרו בהצלחה.`
+        : `Male player "${savedPlayer.name}" representation saved successfully.`);
+      return;
+    }
+
     setPlayers(prev => {
       const idx = prev.findIndex(p => p.id === savedPlayer.id);
       if (idx >= 0) {
@@ -411,17 +472,30 @@ export default function App() {
       : `Player "${savedPlayer.name}" representation saved successfully.`);
   };
 
-  const handleUpdateYouthCategory = (playerId: string, category: YouthCategory) => {
+  const handleUpdateYouthCategory = (playerId: string, category: YouthCategory, rosterType: 'female' | 'male' = 'female') => {
     let updatedPlayer: Player | undefined;
-    setPlayers(prev => prev.map(p => {
-      if (p.id === playerId) {
-        updatedPlayer = { ...p, youthCategory: category };
-        return updatedPlayer;
+    if (rosterType === 'male') {
+      setMalePlayers(prev => prev.map(p => {
+        if (p.id === playerId) {
+          updatedPlayer = { ...p, youthCategory: category };
+          return updatedPlayer;
+        }
+        return p;
+      }));
+      if (currentUser && updatedPlayer) {
+        saveMalePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
       }
-      return p;
-    }));
-    if (currentUser && updatedPlayer) {
-      savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    } else {
+      setPlayers(prev => prev.map(p => {
+        if (p.id === playerId) {
+          updatedPlayer = { ...p, youthCategory: category };
+          return updatedPlayer;
+        }
+        return p;
+      }));
+      if (currentUser && updatedPlayer) {
+        savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      }
     }
     showToast(language === 'he'
       ? `שכבת הגיל עודכנה ל-${category}.`
@@ -441,6 +515,22 @@ export default function App() {
     setDeleteTarget({
       isOpen: true,
       type: 'multiple_players',
+      playerIds
+    });
+  };
+
+  const handleRequestDeleteMalePlayer = (player: Player) => {
+    setDeleteTarget({
+      isOpen: true,
+      type: 'single_male_player',
+      player
+    });
+  };
+
+  const handleRequestDeleteMultipleMale = (playerIds: string[]) => {
+    setDeleteTarget({
+      isOpen: true,
+      type: 'multiple_male_players',
       playerIds
     });
   };
@@ -479,6 +569,23 @@ export default function App() {
       showToast(language === 'he' 
         ? `${deleteTarget.playerIds.length} שחקניות נמחקו מסגל השחקניות.` 
         : `${deleteTarget.playerIds.length} players removed from female roster.`);
+    } else if (deleteTarget.type === 'single_male_player' && deleteTarget.player) {
+      const pid = deleteTarget.player.id;
+      setMalePlayers(prev => prev.filter(p => p.id !== pid));
+      if (detailPlayer?.id === pid) setDetailPlayer(null);
+      if (currentUser) {
+        deleteMalePlayerFromFirestore(currentUser.uid, pid).catch(console.error);
+      }
+      showToast(language === 'he' ? 'השחקן נמחק מסגל בנים ונוער.' : 'Player removed from male roster.');
+    } else if (deleteTarget.type === 'multiple_male_players' && deleteTarget.playerIds) {
+      const ids = new Set(deleteTarget.playerIds);
+      setMalePlayers(prev => prev.filter(p => !ids.has(p.id)));
+      if (currentUser) {
+        deleteMultipleMalePlayersFromFirestore(currentUser.uid, deleteTarget.playerIds).catch(console.error);
+      }
+      showToast(language === 'he'
+        ? `${deleteTarget.playerIds.length} שחקנים נמחקו מסגל בנים ונוער.`
+        : `${deleteTarget.playerIds.length} players removed from male roster.`);
     } else if (deleteTarget.type === 'single_prospect' && deleteTarget.prospect) {
       const pid = deleteTarget.prospect.id;
       setProspects(prev => prev.filter(p => p.id !== pid));
@@ -658,20 +765,38 @@ export default function App() {
 
   const handleQuickExtend = (playerId: string, newExpiryDate: string, updatedStatus: any, renewalNote: string) => {
     let updatedPlayer: Player | undefined;
-    setPlayers(prev => prev.map(p => {
-      if (p.id === playerId) {
-        updatedPlayer = {
-          ...p,
-          contractExpiryDate: newExpiryDate,
-          status: updatedStatus || 'Active',
-          notes: renewalNote ? `${p.notes ? p.notes + '\n' : ''}[Extension]: ${renewalNote}` : p.notes
-        };
-        return updatedPlayer;
+    if (quickExtendRosterType === 'male') {
+      setMalePlayers(prev => prev.map(p => {
+        if (p.id === playerId) {
+          updatedPlayer = {
+            ...p,
+            contractExpiryDate: newExpiryDate,
+            status: updatedStatus || 'Active',
+            notes: renewalNote ? `${p.notes ? p.notes + '\n' : ''}[Extension]: ${renewalNote}` : p.notes
+          };
+          return updatedPlayer;
+        }
+        return p;
+      }));
+      if (currentUser && updatedPlayer) {
+        saveMalePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
       }
-      return p;
-    }));
-    if (currentUser && updatedPlayer) {
-      savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    } else {
+      setPlayers(prev => prev.map(p => {
+        if (p.id === playerId) {
+          updatedPlayer = {
+            ...p,
+            contractExpiryDate: newExpiryDate,
+            status: updatedStatus || 'Active',
+            notes: renewalNote ? `${p.notes ? p.notes + '\n' : ''}[Extension]: ${renewalNote}` : p.notes
+          };
+          return updatedPlayer;
+        }
+        return p;
+      }));
+      if (currentUser && updatedPlayer) {
+        savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      }
     }
     showToast(language === 'he' ? 'הארכת החוזה נרשמה בהצלחה.' : 'Contract extension recorded and expiration alert updated.');
   };
@@ -808,10 +933,12 @@ export default function App() {
         exportTimestamp: new Date().toISOString(),
         userEmail: currentUser?.email || 'local_session',
         totalPlayers: players.length,
+        totalMalePlayers: malePlayers.length,
         totalProspects: prospects.length,
         totalForeignProspects: foreignProspects.length,
         totalTrackedPlayers: trackedPlayers.length,
         players,
+        malePlayers,
         prospects,
         foreignProspects,
         trackedPlayers,
@@ -848,10 +975,17 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         playerCount={players.length}
+        malePlayerCount={malePlayers.length}
         prospectCount={prospects.length + foreignProspects.length}
         criticalAlertsCount={criticalAlertsCount}
         trackedCount={trackedPlayers.length}
         onOpenAddPlayer={() => {
+          setPlayerModalRosterType('female');
+          setPlayerToEdit(null);
+          setIsPlayerModalOpen(true);
+        }}
+        onOpenAddMalePlayer={() => {
+          setPlayerModalRosterType('male');
           setPlayerToEdit(null);
           setIsPlayerModalOpen(true);
         }}
@@ -884,6 +1018,12 @@ export default function App() {
           activeTab={activeTab}
           onOpenMobileSidebar={() => setIsOpenMobileSidebar(true)}
           onOpenAddPlayer={() => {
+            setPlayerModalRosterType('female');
+            setPlayerToEdit(null);
+            setIsPlayerModalOpen(true);
+          }}
+          onOpenAddMalePlayer={() => {
+            setPlayerModalRosterType('male');
             setPlayerToEdit(null);
             setIsPlayerModalOpen(true);
           }}
@@ -896,6 +1036,7 @@ export default function App() {
             setIsAddTrackedModalOpen(true);
           }}
           playerCount={players.length}
+          malePlayerCount={malePlayers.length}
           prospectCount={prospects.length + foreignProspects.length}
           criticalAlertsCount={criticalAlertsCount}
           trackedCount={trackedPlayers.length}
@@ -923,7 +1064,10 @@ export default function App() {
               setInTalkSubTab('foreign');
               setActiveTab('in-talk');
             }}
-            onSelectPlayer={player => setDetailPlayer(player)}
+            onSelectPlayer={player => {
+              setDetailPlayerRosterType('female');
+              setDetailPlayer(player);
+            }}
             onSelectProspect={prospect => {
               if (prospect.videoUrl && prospect.videoUrl.trim()) {
                 handleWatchVideo(
@@ -941,8 +1085,12 @@ export default function App() {
               setForeignProspectToEdit(fp);
               setIsForeignProspectModalOpen(true);
             }}
-            onOpenQuickExtend={player => setQuickExtendPlayer(player)}
+            onOpenQuickExtend={player => {
+              setQuickExtendRosterType('female');
+              setQuickExtendPlayer(player);
+            }}
             onOpenAddPlayer={() => {
+              setPlayerModalRosterType('female');
               setPlayerToEdit(null);
               setIsPlayerModalOpen(true);
             }}
@@ -954,19 +1102,58 @@ export default function App() {
         {activeTab === 'roster' && (
           <PlayerListView
             players={players}
-            onSelectPlayer={player => setDetailPlayer(player)}
+            rosterType="female"
+            onSelectPlayer={player => {
+              setDetailPlayerRosterType('female');
+              setDetailPlayer(player);
+            }}
             onEditPlayer={player => {
+              setPlayerModalRosterType('female');
               setPlayerToEdit(player);
               setIsPlayerModalOpen(true);
             }}
             onRequestDeletePlayer={handleRequestDeletePlayer}
             onRequestDeleteMultiple={handleRequestDeleteMultiple}
-            onQuickExtend={player => setQuickExtendPlayer(player)}
+            onQuickExtend={player => {
+              setQuickExtendRosterType('female');
+              setQuickExtendPlayer(player);
+            }}
             onOpenAddPlayer={() => {
+              setPlayerModalRosterType('female');
               setPlayerToEdit(null);
               setIsPlayerModalOpen(true);
             }}
-            onUpdateYouthCategory={handleUpdateYouthCategory}
+            onUpdateYouthCategory={(id, cat) => handleUpdateYouthCategory(id, cat, 'female')}
+            language={language}
+            currency={currency}
+          />
+        )}
+
+        {activeTab === 'male-roster' && (
+          <PlayerListView
+            players={malePlayers}
+            rosterType="male"
+            onSelectPlayer={player => {
+              setDetailPlayerRosterType('male');
+              setDetailPlayer(player);
+            }}
+            onEditPlayer={player => {
+              setPlayerModalRosterType('male');
+              setPlayerToEdit(player);
+              setIsPlayerModalOpen(true);
+            }}
+            onRequestDeletePlayer={handleRequestDeleteMalePlayer}
+            onRequestDeleteMultiple={handleRequestDeleteMultipleMale}
+            onQuickExtend={player => {
+              setQuickExtendRosterType('male');
+              setQuickExtendPlayer(player);
+            }}
+            onOpenAddPlayer={() => {
+              setPlayerModalRosterType('male');
+              setPlayerToEdit(null);
+              setIsPlayerModalOpen(true);
+            }}
+            onUpdateYouthCategory={(id, cat) => handleUpdateYouthCategory(id, cat, 'male')}
             language={language}
             currency={currency}
           />
@@ -1133,6 +1320,7 @@ export default function App() {
         onSave={handleSavePlayer}
         playerToEdit={playerToEdit}
         language={language}
+        rosterType={playerModalRosterType}
       />
 
       {/* In Talk With Prospect Modal */}
@@ -1167,16 +1355,22 @@ export default function App() {
         player={detailPlayer}
         onEdit={player => {
           setDetailPlayer(null);
+          setPlayerModalRosterType(detailPlayerRosterType);
           setPlayerToEdit(player);
           setIsPlayerModalOpen(true);
         }}
         onQuickExtend={player => {
           setDetailPlayer(null);
+          setQuickExtendRosterType(detailPlayerRosterType);
           setQuickExtendPlayer(player);
         }}
         onRequestDelete={player => {
           setDetailPlayer(null);
-          handleRequestDeletePlayer(player);
+          if (detailPlayerRosterType === 'male') {
+            handleRequestDeleteMalePlayer(player);
+          } else {
+            handleRequestDeletePlayer(player);
+          }
         }}
         onWatchVideo={(title, videoUrl, player) => {
           handleWatchVideo(title, videoUrl, player);

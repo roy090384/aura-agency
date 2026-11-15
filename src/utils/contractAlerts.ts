@@ -74,3 +74,23 @@ export function formatDatePretty(dateStr: string): string {
     return dateStr;
   }
 }
+
+export function formatJoinedClubDate(dateStr?: string): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const trimmed = dateStr.trim();
+  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(trimmed);
+  if (match) {
+    const [, year, month] = match;
+    return `${month}/${year}`;
+  }
+  try {
+    const date = new Date(trimmed);
+    if (!isNaN(date.getTime())) {
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${month}/${year}`;
+    }
+  } catch {}
+  return trimmed;
+}
+

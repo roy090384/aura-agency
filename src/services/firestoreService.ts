@@ -75,6 +75,70 @@ export async function deleteMultiplePlayersFromFirestore(userId: string, playerI
 }
 
 /**
+ * Real-time subscription to user's male / youth roster players
+ */
+export function subscribeToMalePlayers(
+  userId: string,
+  onUpdate: (players: Player[]) => void,
+  onError?: (err: any) => void
+) {
+  const path = `users/${userId}/malePlayers`;
+  const colRef = collection(db, 'users', userId, 'malePlayers');
+  const q = query(colRef);
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const players: Player[] = [];
+      snapshot.forEach((docSnap) => {
+        players.push(docSnap.data() as Player);
+      });
+      onUpdate(players);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Save or update male / youth player in Firestore
+ */
+export async function saveMalePlayerToFirestore(userId: string, player: Player) {
+  const path = `users/${userId}/malePlayers/${player.id}`;
+  try {
+    const docRef = doc(db, 'users', userId, 'malePlayers', player.id);
+    const dataToSave = { ...player, userId };
+    await setDoc(docRef, dataToSave, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Delete male / youth player from Firestore
+ */
+export async function deleteMalePlayerFromFirestore(userId: string, playerId: string) {
+  const path = `users/${userId}/malePlayers/${playerId}`;
+  try {
+    const docRef = doc(db, 'users', userId, 'malePlayers', playerId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
+ * Delete multiple male / youth players from Firestore
+ */
+export async function deleteMultipleMalePlayersFromFirestore(userId: string, playerIds: string[]) {
+  for (const id of playerIds) {
+    await deleteMalePlayerFromFirestore(userId, id);
+  }
+}
+
+/**
  * Real-time subscription to user's scouting talk prospects
  */
 export function subscribeToProspects(
@@ -273,7 +337,8 @@ export async function syncLocalDataToFirestoreIfEmpty(
   localPlayers: Player[],
   localProspects: TalkProspect[],
   localTracked: TrackedPlayer[],
-  localForeignProspects: ForeignProspect[] = []
+  localForeignProspects: ForeignProspect[] = [],
+  localMalePlayers: Player[] = []
 ) {
   try {
     // 1. Players: check existing cloud IDs
@@ -284,6 +349,17 @@ export async function syncLocalDataToFirestoreIfEmpty(
     for (const p of localPlayers) {
       if (!existingPlayerIds.has(p.id)) {
         await savePlayerToFirestore(userId, p);
+      }
+    }
+
+    // 1b. Male Roster Players: check existing cloud IDs
+    const malePlayersCol = collection(db, 'users', userId, 'malePlayers');
+    const mpSnap = await getDocs(malePlayersCol);
+    const existingMaleIds = new Set(mpSnap.docs.map(d => d.id));
+
+    for (const mp of localMalePlayers) {
+      if (!existingMaleIds.has(mp.id)) {
+        await saveMalePlayerToFirestore(userId, mp);
       }
     }
 

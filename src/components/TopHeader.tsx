@@ -24,9 +24,11 @@ interface TopHeaderProps {
   activeTab: NavigationTab;
   onOpenMobileSidebar: () => void;
   onOpenAddPlayer: () => void;
+  onOpenAddMalePlayer: () => void;
   onOpenAddProspect: () => void;
   onOpenAddTrackedPlayer: () => void;
   playerCount: number;
+  malePlayerCount: number;
   prospectCount: number;
   criticalAlertsCount: number;
   trackedCount: number;
@@ -46,9 +48,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   activeTab,
   onOpenMobileSidebar,
   onOpenAddPlayer,
+  onOpenAddMalePlayer,
   onOpenAddProspect,
   onOpenAddTrackedPlayer,
   playerCount,
+  malePlayerCount,
   prospectCount,
   criticalAlertsCount,
   trackedCount,
@@ -71,6 +75,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         return t.dashboard;
       case 'roster':
         return t.agencyRoster;
+      case 'male-roster':
+        return t.maleRoster;
       case 'in-talk':
         return t.inTalkWith;
       case 'alerts':
@@ -89,6 +95,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'dashboard':
         return LayoutDashboard;
       case 'roster':
+      case 'male-roster':
         return Users;
       case 'in-talk':
         return MessageSquare;
@@ -149,6 +156,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{t.addTalkProspect}</span>
+              </button>
+            ) : activeTab === 'male-roster' ? (
+              <button
+                onClick={onOpenAddMalePlayer}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>{t.addMalePlayer}</span>
               </button>
             ) : (
               <button

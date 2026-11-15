@@ -26,7 +26,7 @@ export type YouthCategory = 'Senior' | 'U19' | 'U17' | 'U15';
 export type TrackerCategory = 'U15' | 'U16' | 'U17' | 'U19' | 'Womans';
 export type PlayerGender = 'Female' | 'Male';
 
-export type NavigationTab = 'dashboard' | 'roster' | 'in-talk' | 'alerts' | 'tracker' | 'compensation';
+export type NavigationTab = 'dashboard' | 'roster' | 'male-roster' | 'in-talk' | 'alerts' | 'tracker' | 'compensation';
 
 export type Currency = 'EUR' | 'USD' | 'ILS';
 export type SalaryPeriod = 'Weekly' | 'Monthly' | 'Annual';
@@ -73,6 +73,7 @@ export interface Player {
   youthCategory?: YouthCategory;
   contractStartDate: string; // YYYY-MM-DD
   contractExpiryDate: string; // YYYY-MM-DD
+  joinedCurrentClubDate?: string; // YYYY-MM-DD or YYYY-MM
   status: PlayerStatus;
   marketValue: string; // e.g. "€450,000"
   agencyFeePct: number; // e.g. 10%

@@ -21,6 +21,7 @@
         "youthCategory": { "type": "string", "maxLength": 16 },
         "contractStartDate": { "type": "string", "maxLength": 32 },
         "contractExpiryDate": { "type": "string", "maxLength": 32 },
+        "joinedCurrentClubDate": { "type": "string", "maxLength": 32 },
         "status": { "type": "string", "maxLength": 32 },
         "marketValue": { "type": "string", "maxLength": 64 },
         "agencyFeePct": { "type": "number" },
@@ -141,7 +142,11 @@
   "firestore": {
     "/users/{userId}/players/{playerId}": {
       "schema": { "$ref": "#/entities/Player" },
-      "description": "Agency roster players belonging to an authenticated user."
+      "description": "Agency female roster players belonging to an authenticated user."
+    },
+    "/users/{userId}/malePlayers/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Agency male / youth roster players belonging to an authenticated user."
     },
     "/users/{userId}/prospects/{prospectId}": {
       "schema": { "$ref": "#/entities/TalkProspect" },
