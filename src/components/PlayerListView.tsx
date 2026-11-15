@@ -237,7 +237,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
             />
           </div>
 
-          {/* Youth Age Category Filter (U15, U17, U19, Senior) */}
+          {/* Youth Age Category Filter */}
           <div>
             <select
               value={youthFilter}
@@ -245,10 +245,12 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
               className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white font-medium"
             >
               <option value="ALL">{t.allAges}</option>
-              <option value="Senior">{t.senior}</option>
-              <option value="U19">{t.u19}</option>
-              <option value="U17">{t.u17}</option>
-              <option value="U15">{t.u15}</option>
+              <option value="Senior">{isMale ? t.maleSenior : t.senior}</option>
+              <option value="U19">{isMale ? t.maleU19 : t.u19}</option>
+              <option value="U17">{isMale ? t.maleU17 : t.u17}</option>
+              {isMale && <option value="U16">{t.maleU16}</option>}
+              <option value="U15">{isMale ? t.maleU15 : t.u15}</option>
+              {isMale && <option value="U14">{t.maleU14}</option>}
             </select>
           </div>
 
@@ -471,18 +473,20 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Youth Category Badge (U15, U17, U19, Senior) with quick click toggle */}
+                      {/* Youth Category Badge with quick click toggle */}
                       <td className="py-3 px-3 whitespace-nowrap">
                         <select
                           value={youthCat}
                           onChange={e => onUpdateYouthCategory(player.id, e.target.value as YouthCategory)}
                           className={`text-xs font-bold px-2 py-0.5 rounded-md border cursor-pointer focus:ring-1 focus:ring-emerald-500 ${getYouthBadgeColor(youthCat)}`}
-                          title="Click to change age category (U15, U17, U19, Senior)"
+                          title={isMale ? 'Click to change age category (U14, U15, U16, U17, U19, Senior)' : 'Click to change age category (U15, U17, U19, Senior)'}
                         >
                           <option value="Senior">Senior</option>
                           <option value="U19">U19</option>
                           <option value="U17">U17</option>
+                          {(isMale || youthCat === 'U16') && <option value="U16">U16</option>}
                           <option value="U15">U15</option>
+                          {(isMale || youthCat === 'U14') && <option value="U14">U14</option>}
                         </select>
                       </td>
 

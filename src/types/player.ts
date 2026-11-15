@@ -21,7 +21,7 @@ export type PlayerStatus =
 
 export type ContractUrgency = 'EXPIRED' | 'CRITICAL_1_MONTH' | 'APPROACHING_3_MONTHS' | 'HEALTHY';
 
-export type YouthCategory = 'Senior' | 'U19' | 'U17' | 'U15';
+export type YouthCategory = 'Senior' | 'U19' | 'U17' | 'U16' | 'U15' | 'U14';
 
 export type TrackerCategory = 'U15' | 'U16' | 'U17' | 'U19' | 'Womans';
 export type PlayerGender = 'Female' | 'Male';

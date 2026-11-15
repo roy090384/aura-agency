@@ -39,7 +39,8 @@ const STATUSES: PlayerStatus[] = [
   'Transferred'
 ];
 
-const YOUTH_OPTIONS: YouthCategory[] = ['Senior', 'U19', 'U17', 'U15'];
+const FEMALE_YOUTH_OPTIONS: YouthCategory[] = ['Senior', 'U19', 'U17', 'U15'];
+const MALE_YOUTH_OPTIONS: YouthCategory[] = ['Senior', 'U19', 'U17', 'U16', 'U15', 'U14'];
 
 const PRESET_AVATARS = [
   { label: 'Forward Portrait', url: '/src/assets/images/player_portrait_forward_1794074972306.jpg' },
@@ -57,6 +58,7 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
 }) => {
   const t = TRANSLATIONS[language];
   const isMale = rosterType === 'male';
+  const youthOptions = isMale ? MALE_YOUTH_OPTIONS : FEMALE_YOUTH_OPTIONS;
   const [name, setName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [age, setAge] = useState<number>(isMale ? 17 : 22);
@@ -206,7 +208,7 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
                 : 'Add New Female Player to Agency'}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Maintain agency mandate dates, club contracts, and age tier (Senior, U19, U17, U15).
+              Maintain agency mandate dates, club contracts, and age tier ({isMale ? 'Senior, U19, U17, U16, U15, U14' : 'Senior, U19, U17, U15'}).
             </p>
           </div>
           <button
@@ -221,20 +223,20 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           
-          {/* Age Tier Selector: Senior vs U19 vs U17 vs U15 */}
+          {/* Age Tier Selector */}
           <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Player Age Category (Senior / U19 / U17 / U15) *</span>
+                <span>Player Age Category ({isMale ? 'Senior / U19 / U17 / U16 / U15 / U14' : 'Senior / U19 / U17 / U15'}) *</span>
               </label>
               <span className="text-[11px] text-slate-500">
                 Categorize for academy & senior tracking
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-2">
-              {YOUTH_OPTIONS.map(cat => (
+            <div className={`grid gap-2 ${isMale ? 'grid-cols-3 sm:grid-cols-6' : 'grid-cols-4'}`}>
+              {youthOptions.map(cat => (
                 <button
                   key={cat}
                   type="button"
@@ -380,7 +382,9 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
                       const computedAge = calculateAgeFromBirthDate(newDate);
                       setAge(computedAge);
                       // Auto suggest youth category based on age
-                      if (computedAge <= 15) setYouthCategory('U15');
+                      if (isMale && computedAge <= 14) setYouthCategory('U14');
+                      else if (computedAge <= 15) setYouthCategory('U15');
+                      else if (isMale && computedAge === 16) setYouthCategory('U16');
                       else if (computedAge <= 17) setYouthCategory('U17');
                       else if (computedAge <= 19) setYouthCategory('U19');
                       else setYouthCategory('Senior');
@@ -397,13 +401,15 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
                 </label>
                 <input
                   type="number"
-                  min="13"
+                  min="11"
                   max="45"
                   value={age}
                   onChange={e => {
                     const val = Number(e.target.value);
                     setAge(val);
-                    if (val <= 15 && youthCategory === 'Senior') setYouthCategory('U15');
+                    if (isMale && val <= 14 && youthCategory === 'Senior') setYouthCategory('U14');
+                    else if (val <= 15 && youthCategory === 'Senior') setYouthCategory('U15');
+                    else if (isMale && val === 16 && youthCategory === 'Senior') setYouthCategory('U16');
                     else if (val <= 17 && val > 15 && youthCategory === 'Senior') setYouthCategory('U17');
                     else if (val <= 19 && val > 17 && youthCategory === 'Senior') setYouthCategory('U19');
                   }}

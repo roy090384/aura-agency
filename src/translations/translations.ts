@@ -38,7 +38,15 @@ export const TRANSLATIONS = {
     senior: 'Senior',
     u19: 'U19',
     u17: 'U17',
+    u16: 'U16',
     u15: 'U15',
+    u14: 'U14',
+    maleSenior: 'Senior',
+    maleU19: 'U19',
+    maleU17: 'U17',
+    maleU16: 'U16',
+    maleU15: 'U15',
+    maleU14: 'U14',
     youthCategory: 'Age Category',
     youthCategoryBadge: 'Tier',
 
@@ -280,7 +288,15 @@ export const TRANSLATIONS = {
     senior: 'בוגרות (Senior)',
     u19: 'נערות עד 19 (U19)',
     u17: 'נערות עד 17 (U17)',
+    u16: 'נערים עד 16 (U16)',
     u15: 'ילדות עד 15 (U15)',
+    u14: 'ילדות עד 14 (U14)',
+    maleSenior: 'בוגרים (Senior)',
+    maleU19: 'נוער עד 19 (U19)',
+    maleU17: 'נערים עד 17 (U17)',
+    maleU16: 'נערים עד 16 (U16)',
+    maleU15: 'נערים עד 15 (U15)',
+    maleU14: 'ילדים עד 14 (U14)',
     youthCategory: 'קטגוריית גיל',
     youthCategoryBadge: 'שכבת גיל',
 
@@ -554,20 +570,28 @@ export const YOUTH_CATEGORY_LABELS: Record<Language, Record<YouthCategory, strin
     'Senior': 'Senior',
     'U19': 'U19',
     'U17': 'U17',
-    'U15': 'U15'
+    'U16': 'U16',
+    'U15': 'U15',
+    'U14': 'U14'
   },
   he: {
     'Senior': 'בוגרות',
     'U19': 'U19 (עד 19)',
     'U17': 'U17 (עד 17)',
-    'U15': 'U15 (עד 15)'
+    'U16': 'U16 (עד 16)',
+    'U15': 'U15 (עד 15)',
+    'U14': 'U14 (עד 14)'
   }
 };
 
 export function getYouthBadgeColor(cat?: YouthCategory) {
   switch (cat) {
+    case 'U14':
+      return 'bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800';
     case 'U15':
       return 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+    case 'U16':
+      return 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800';
     case 'U17':
       return 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
     case 'U19':
