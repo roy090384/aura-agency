@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Player, TalkProspect, ForeignProspect, ConversationLog, YouthCategory, Language, Currency, TrackedPlayer, TrackerCategory, NavigationTab } from './types/player';
+import { Player, TalkProspect, ForeignProspect, ConversationLog, YouthCategory, AgentProfile, Language, Currency, TrackedPlayer, TrackerCategory, NavigationTab } from './types/player';
 import { INITIAL_PLAYERS, INITIAL_PROSPECTS } from './data/mockPlayers';
 import { INITIAL_TRACKED_PLAYERS } from './data/mockTrackedPlayers';
-import { getContractDaysRemaining, getContractUrgency } from './utils/contractAlerts';
+import { DEFAULT_AGENTS } from './data/defaultAgents';
+import { getContractDaysRemaining } from './utils/contractAlerts';
+import { getUpcomingBirthdays } from './utils/birthdayAlerts';
 import { TRANSLATIONS } from './translations/translations';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { DashboardView } from './components/DashboardView';
 import { PlayerListView } from './components/PlayerListView';
 import { InTalkWithView } from './components/InTalkWithView';
-import { ContractAlertsView } from './components/ContractAlertsView';
+import { AlertsHubView } from './components/AlertsHubView';
+import { AgentSettingsView } from './components/AgentSettingsView';
 import { PlayerTrackerView } from './components/PlayerTrackerView';
 import { TrainingCompensationView } from './components/TrainingCompensationView';
 import { AddTrackedPlayerModal } from './components/AddTrackedPlayerModal';
@@ -23,7 +26,7 @@ import { QuickExtendModal } from './components/QuickExtendModal';
 import { PlayerDetailModal } from './components/PlayerDetailModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { AuthModal } from './components/AuthModal';
-import { CheckCircle2, Sparkles, X, Cloud } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 import { auth, loginWithGoogle, logoutUser, loginWithEmail, loginAnonymouslyUser, getAuthErrorDiagnostic } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
@@ -45,6 +48,8 @@ import {
   subscribeToForeignProspects,
   saveForeignProspectToFirestore,
   deleteForeignProspectFromFirestore,
+  subscribeToAgents,
+  saveAgentsToFirestore,
   savePreferencesToFirestore, 
   syncLocalDataToFirestoreIfEmpty 
 } from './services/firestoreService';
@@ -139,8 +144,23 @@ export default function App() {
     return [];
   });
 
+  // Agency Agents Directory State (Roy Shpitalnik & Aviv Kamara)
+  const [agents, setAgents] = useState<AgentProfile[]>(() => {
+    try {
+      const stored = localStorage.getItem('aura_agency_agents_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load agents from storage', e);
+    }
+    return DEFAULT_AGENTS;
+  });
+
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [inTalkSubTab, setInTalkSubTab] = useState<'candidates' | 'foreign'>('candidates');
+  const [alertsSubTab, setAlertsSubTab] = useState<'contracts' | 'birthdays'>('contracts');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
@@ -304,6 +324,15 @@ export default function App() {
     }
   }, [foreignProspects]);
 
+  // Persist agent directory settings
+  useEffect(() => {
+    try {
+      localStorage.setItem('aura_agency_agents_v1', JSON.stringify(agents));
+    } catch (e) {
+      console.error('Failed to save agents', e);
+    }
+  }, [agents]);
+
   // Firebase Auth and real-time Firestore synchronization
   useEffect(() => {
     let unsubPlayers: (() => void) | undefined;
@@ -311,13 +340,14 @@ export default function App() {
     let unsubProspects: (() => void) | undefined;
     let unsubTracked: (() => void) | undefined;
     let unsubForeign: (() => void) | undefined;
+    let unsubAgents: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
         setIsCloudSyncing(true);
         try {
-          await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects, malePlayers);
+          await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects, malePlayers, agents);
         } catch (err) {
           console.error('Error syncing initial data:', err);
         } finally {
@@ -343,12 +373,17 @@ export default function App() {
         unsubForeign = subscribeToForeignProspects(user.uid, (remoteForeign) => {
           setForeignProspects(remoteForeign);
         });
+
+        unsubAgents = subscribeToAgents(user.uid, (remoteAgents) => {
+          setAgents(remoteAgents);
+        });
       } else {
         if (unsubPlayers) unsubPlayers();
         if (unsubMalePlayers) unsubMalePlayers();
         if (unsubProspects) unsubProspects();
         if (unsubTracked) unsubTracked();
         if (unsubForeign) unsubForeign();
+        if (unsubAgents) unsubAgents();
       }
     });
 
@@ -359,6 +394,7 @@ export default function App() {
       if (unsubProspects) unsubProspects();
       if (unsubTracked) unsubTracked();
       if (unsubForeign) unsubForeign();
+      if (unsubAgents) unsubAgents();
     };
   }, []);
 
@@ -428,11 +464,24 @@ export default function App() {
     }
   };
 
-  // Contract alerts: count expiring in <= 30 days (1 month) or expired
-  const criticalAlertsCount = players.filter(p => {
-    const days = getContractDaysRemaining(p.contractExpiryDate);
-    return days <= 30;
-  }).length;
+  // Unified contract alerts across both Female and Male rosters (expiring <= 30 days or expired)
+  const criticalAlertsCount =
+    players.filter(p => getContractDaysRemaining(p.contractExpiryDate) <= 30).length +
+    malePlayers.filter(p => getContractDaysRemaining(p.contractExpiryDate) <= 30).length;
+
+  // Unified upcoming birthdays across both Female and Male rosters (next 30 days)
+  const upcomingBirthdaysCount =
+    getUpcomingBirthdays(players, 30).length +
+    getUpcomingBirthdays(malePlayers, 30).length;
+
+  // Agent settings save handler
+  const handleSaveAgents = (updatedAgents: AgentProfile[]) => {
+    setAgents(updatedAgents);
+    if (currentUser) {
+      saveAgentsToFirestore(currentUser.uid, updatedAgents).catch(console.error);
+    }
+    showToast(language === 'he' ? 'פרטי הסוכנים נשמרו בהצלחה.' : 'Agent contact details saved successfully.');
+  };
 
   // Handlers for Female Roster Players
   const handleSavePlayer = (savedPlayer: Player) => {
@@ -942,6 +991,7 @@ export default function App() {
         prospects,
         foreignProspects,
         trackedPlayers,
+        agents,
         settings: {
           currency,
           language,
@@ -978,6 +1028,7 @@ export default function App() {
         malePlayerCount={malePlayers.length}
         prospectCount={prospects.length + foreignProspects.length}
         criticalAlertsCount={criticalAlertsCount}
+        upcomingBirthdaysCount={upcomingBirthdaysCount}
         trackedCount={trackedPlayers.length}
         onOpenAddPlayer={() => {
           setPlayerModalRosterType('female');
@@ -1057,15 +1108,22 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <DashboardView
             players={players}
+            malePlayers={malePlayers}
             prospects={prospects}
             foreignProspects={foreignProspects}
+            trackedPlayers={trackedPlayers}
+            agents={agents}
             onNavigateTab={setActiveTab}
+            onNavigateAlertsHub={(subTab) => {
+              setAlertsSubTab(subTab);
+              setActiveTab('alerts');
+            }}
             onNavigateForeignProspects={() => {
               setInTalkSubTab('foreign');
               setActiveTab('in-talk');
             }}
-            onSelectPlayer={player => {
-              setDetailPlayerRosterType('female');
+            onSelectPlayer={(player, rosterType) => {
+              setDetailPlayerRosterType(rosterType);
               setDetailPlayer(player);
             }}
             onSelectProspect={prospect => {
@@ -1085,12 +1143,12 @@ export default function App() {
               setForeignProspectToEdit(fp);
               setIsForeignProspectModalOpen(true);
             }}
-            onOpenQuickExtend={player => {
-              setQuickExtendRosterType('female');
+            onOpenQuickExtend={(player, rosterType) => {
+              setQuickExtendRosterType(rosterType);
               setQuickExtendPlayer(player);
             }}
-            onOpenAddPlayer={() => {
-              setPlayerModalRosterType('female');
+            onOpenAddPlayer={(rosterType) => {
+              setPlayerModalRosterType(rosterType);
               setPlayerToEdit(null);
               setIsPlayerModalOpen(true);
             }}
@@ -1103,6 +1161,7 @@ export default function App() {
           <PlayerListView
             players={players}
             rosterType="female"
+            agents={agents}
             onSelectPlayer={player => {
               setDetailPlayerRosterType('female');
               setDetailPlayer(player);
@@ -1133,6 +1192,7 @@ export default function App() {
           <PlayerListView
             players={malePlayers}
             rosterType="male"
+            agents={agents}
             onSelectPlayer={player => {
               setDetailPlayerRosterType('male');
               setDetailPlayer(player);
@@ -1200,11 +1260,22 @@ export default function App() {
         )}
 
         {activeTab === 'alerts' && (
-          <ContractAlertsView
-            players={players}
-            onSelectPlayer={player => setDetailPlayer(player)}
-            onQuickExtend={player => setQuickExtendPlayer(player)}
-            onEditPlayer={player => {
+          <AlertsHubView
+            femalePlayers={players}
+            malePlayers={malePlayers}
+            agents={agents}
+            subTab={alertsSubTab}
+            onSubTabChange={setAlertsSubTab}
+            onSelectPlayer={(player, rosterType) => {
+              setDetailPlayerRosterType(rosterType);
+              setDetailPlayer(player);
+            }}
+            onQuickExtend={(player, rosterType) => {
+              setQuickExtendRosterType(rosterType);
+              setQuickExtendPlayer(player);
+            }}
+            onEditPlayer={(player, rosterType) => {
+              setPlayerModalRosterType(rosterType);
               setPlayerToEdit(player);
               setIsPlayerModalOpen(true);
             }}
@@ -1251,6 +1322,17 @@ export default function App() {
 
         {/* Training Compensation Calculator Tab */}
         {activeTab === 'compensation' && <TrainingCompensationView />}
+
+        {/* Agent Settings Tab */}
+        {activeTab === 'agent-settings' && (
+          <AgentSettingsView
+            agents={agents}
+            onSaveAgents={handleSaveAgents}
+            femalePlayers={players}
+            malePlayers={malePlayers}
+            language={language}
+          />
+        )}
       </main>
 
       {/* Floating Toast Notification */}
@@ -1321,6 +1403,7 @@ export default function App() {
         playerToEdit={playerToEdit}
         language={language}
         rosterType={playerModalRosterType}
+        agents={agents}
       />
 
       {/* In Talk With Prospect Modal */}
@@ -1377,6 +1460,7 @@ export default function App() {
         }}
         language={language}
         currency={currency}
+        agents={agents}
       />
 
       {/* Quick Extend Contract Modal */}

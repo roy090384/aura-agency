@@ -5,10 +5,21 @@ import {
   deleteDoc, 
   onSnapshot, 
   query,
-  getDocs
+  getDocs,
+  getDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Player, TalkProspect, TrackedPlayer, ForeignProspect, Currency, Language } from '../types/player';
+import { Player, TalkProspect, TrackedPlayer, ForeignProspect, AgentProfile, Currency, Language } from '../types/player';
+
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const cleaned: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      cleaned[k] = v;
+    }
+  }
+  return cleaned as T;
+}
 
 /**
  * Real-time subscription to user's agency players
@@ -45,7 +56,7 @@ export async function savePlayerToFirestore(userId: string, player: Player) {
   const path = `users/${userId}/players/${player.id}`;
   try {
     const docRef = doc(db, 'users', userId, 'players', player.id);
-    const dataToSave = { ...player, userId };
+    const dataToSave = stripUndefined({ ...player, userId });
     await setDoc(docRef, dataToSave, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -109,7 +120,7 @@ export async function saveMalePlayerToFirestore(userId: string, player: Player) 
   const path = `users/${userId}/malePlayers/${player.id}`;
   try {
     const docRef = doc(db, 'users', userId, 'malePlayers', player.id);
-    const dataToSave = { ...player, userId };
+    const dataToSave = stripUndefined({ ...player, userId });
     await setDoc(docRef, dataToSave, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -329,6 +340,55 @@ export async function savePreferencesToFirestore(
 }
 
 /**
+ * Real-time subscription to user's agent directory settings
+ */
+export function subscribeToAgents(
+  userId: string,
+  onUpdate: (agents: AgentProfile[]) => void,
+  onError?: (err: any) => void
+) {
+  const path = `users/${userId}/settings/agents`;
+  const docRef = doc(db, 'users', userId, 'settings', 'agents');
+
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (Array.isArray(data.agents) && data.agents.length > 0) {
+          onUpdate(data.agents as AgentProfile[]);
+        }
+      }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Save agent directory settings (Roy Shpitalnik, Aviv Kamara) to Firestore
+ */
+export async function saveAgentsToFirestore(userId: string, agents: AgentProfile[]) {
+  const path = `users/${userId}/settings/agents`;
+  try {
+    const docRef = doc(db, 'users', userId, 'settings', 'agents');
+    await setDoc(
+      docRef,
+      {
+        agents: agents.map(a => stripUndefined({ ...a })),
+        userId,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
  * Smart cloud sync on login: merges any local records into Firestore
  * WITHOUT EVER overwriting or deleting any existing cloud documents.
  */
@@ -338,7 +398,8 @@ export async function syncLocalDataToFirestoreIfEmpty(
   localProspects: TalkProspect[],
   localTracked: TrackedPlayer[],
   localForeignProspects: ForeignProspect[] = [],
-  localMalePlayers: Player[] = []
+  localMalePlayers: Player[] = [],
+  localAgents: AgentProfile[] = []
 ) {
   try {
     // 1. Players: check existing cloud IDs
@@ -393,6 +454,15 @@ export async function syncLocalDataToFirestoreIfEmpty(
     for (const fp of localForeignProspects) {
       if (!existingForeignIds.has(fp.id)) {
         await saveForeignProspectToFirestore(userId, fp);
+      }
+    }
+
+    // 5. Agent Settings: seed if document does not exist yet
+    if (localAgents.length > 0) {
+      const agentsDocRef = doc(db, 'users', userId, 'settings', 'agents');
+      const agentsSnap = await getDoc(agentsDocRef);
+      if (!agentsSnap.exists()) {
+        await saveAgentsToFirestore(userId, localAgents);
       }
     }
   } catch (err) {

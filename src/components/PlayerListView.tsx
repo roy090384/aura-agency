@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Player, PlayerPosition, PlayerStatus, YouthCategory, Language, Currency } from '../types/player';
+import { Player, PlayerPosition, PlayerStatus, YouthCategory, AgentProfile, Language, Currency } from '../types/player';
+import { DEFAULT_AGENTS, findAgentProfile } from '../data/defaultAgents';
 import { 
   getContractDaysRemaining, 
   getContractUrgency, 
@@ -34,7 +35,10 @@ import {
   Sparkles,
   Shield,
   ArrowUpDown,
-  Tag
+  Tag,
+  Phone,
+  UserCheck,
+  Users
 } from 'lucide-react';
 
 interface PlayerListViewProps {
@@ -49,6 +53,7 @@ interface PlayerListViewProps {
   language: Language;
   currency?: Currency;
   rosterType?: 'female' | 'male';
+  agents?: AgentProfile[];
 }
 
 export const PlayerListView: React.FC<PlayerListViewProps> = ({
@@ -62,7 +67,8 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
   onUpdateYouthCategory,
   language,
   currency = 'EUR',
-  rosterType = 'female'
+  rosterType = 'female',
+  agents = DEFAULT_AGENTS
 }) => {
   const t = TRANSLATIONS[language];
   const isMale = rosterType === 'male';
@@ -73,6 +79,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [urgencyFilter, setUrgencyFilter] = useState<string>('ALL');
   const [youthFilter, setYouthFilter] = useState<string>('ALL');
+  const [agentFilter, setAgentFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [sortBy, setSortBy] = useState<'expiry' | 'name' | 'age'>('expiry');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -89,7 +96,10 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
         player.name.toLowerCase().includes(q) ||
         player.clubName.toLowerCase().includes(q) ||
         player.nationality.toLowerCase().includes(q) ||
-        player.position.toLowerCase().includes(q);
+        player.position.toLowerCase().includes(q) ||
+        (player.contactPhone || '').toLowerCase().includes(q) ||
+        (player.parentName || '').toLowerCase().includes(q) ||
+        (player.assignedAgent || '').toLowerCase().includes(q);
 
       // Position filter
       const matchesPosition = positionFilter === 'ALL' || player.position.includes(positionFilter);
@@ -97,8 +107,15 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
       // Status filter
       const matchesStatus = statusFilter === 'ALL' || player.status === statusFilter;
 
-      // Youth Category Filter (U15, U17, U19, Senior)
+      // Youth Category Filter
       const matchesYouth = youthFilter === 'ALL' || (player.youthCategory || 'Senior') === youthFilter;
+
+      // Assigned Agent Filter
+      const matchesAgent =
+        agentFilter === 'ALL' ||
+        (agentFilter === 'UNASSIGNED'
+          ? !player.assignedAgent
+          : (player.assignedAgent || '').toLowerCase() === agentFilter.toLowerCase());
 
       // Urgency filter
       const urgency = getContractUrgency(player.contractExpiryDate);
@@ -113,7 +130,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
         matchesUrgency = urgency === 'HEALTHY';
       }
 
-      return matchesSearch && matchesPosition && matchesStatus && matchesYouth && matchesUrgency;
+      return matchesSearch && matchesPosition && matchesStatus && matchesYouth && matchesAgent && matchesUrgency;
     }).sort((a, b) => {
       if (sortBy === 'expiry') {
         const daysA = getContractDaysRemaining(a.contractExpiryDate);
@@ -128,7 +145,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
       }
       return 0;
     });
-  }, [players, searchQuery, positionFilter, statusFilter, youthFilter, urgencyFilter, sortBy, sortOrder]);
+  }, [players, searchQuery, positionFilter, statusFilter, youthFilter, agentFilter, urgencyFilter, sortBy, sortOrder]);
 
   // Bulk selection toggles
   const handleToggleSelectAll = () => {
@@ -147,7 +164,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
 
   // Export to CSV
   const handleExportCSV = () => {
-    const headers = ['ID', 'Name', 'Age Category', 'Age', 'Nationality', 'Club', 'League', 'Joined Current Club', 'Position', 'Status', 'Contract Expiry', 'Days Remaining', 'Market Value', 'Agency Fee %'];
+    const headers = ['ID', 'Name', 'Age Category', 'Age', 'Nationality', 'Club', 'League', 'Joined Current Club', 'Player Phone', 'Accompanying Parent', 'Assigned Agent', 'Position', 'Status', 'Contract Expiry', 'Days Remaining', 'Market Value', 'Agency Fee %'];
     const rows = filteredPlayers.map(p => [
       p.id,
       `"${p.name}"`,
@@ -157,6 +174,9 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
       `"${p.clubName}"`,
       `"${p.league}"`,
       `"${formatJoinedClubDate(p.joinedCurrentClubDate) || '-'}"`,
+      `"${p.contactPhone || ''}"`,
+      `"${p.parentName || ''}"`,
+      `"${p.assignedAgent || ''}"`,
       `"${p.position}"`,
       p.status,
       p.contractExpiryDate,
@@ -223,7 +243,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
 
       {/* Search & Filter Controls Bar */}
       <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           
           {/* Search Input */}
           <div className="relative">
@@ -267,6 +287,21 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
               <option value="Midfield">{language === 'he' ? (isMale ? 'קשרים' : 'קשריות') : 'Midfielders (CDM / CM / CAM)'}</option>
               <option value="Winger">{language === 'he' ? (isMale ? 'שחקני כנף' : 'שחקניות כנף') : 'Wingers (LW / RW)'}</option>
               <option value="Striker">{language === 'he' ? (isMale ? 'חלוצים' : 'חלוצות') : 'Strikers (ST)'}</option>
+            </select>
+          </div>
+
+          {/* Assigned Agent Filter */}
+          <div>
+            <select
+              value={agentFilter}
+              onChange={e => setAgentFilter(e.target.value)}
+              className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white font-medium"
+            >
+              <option value="ALL">{t.allAgents}</option>
+              {agents.map(ag => (
+                <option key={ag.id} value={ag.name}>{ag.name}</option>
+              ))}
+              <option value="UNASSIGNED">{t.unassigned}</option>
             </select>
           </div>
 
@@ -383,6 +418,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
               setPositionFilter('ALL');
               setStatusFilter('ALL');
               setYouthFilter('ALL');
+              setAgentFilter('ALL');
               setUrgencyFilter('ALL');
             }}
             className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
@@ -409,6 +445,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                   <th className="py-3 px-4">{t.thPlayer}</th>
                   <th className="py-3 px-3">{t.thCategory}</th>
                   <th className="py-3 px-4">{t.thClub}</th>
+                  <th className="py-3 px-4">{t.assignedAgent}</th>
                   <th className="py-3 px-4">{t.thPosition}</th>
                   <th className="py-3 px-4">{t.thContractExpiry}</th>
                   <th className="py-3 px-4">{t.thStatus}</th>
@@ -464,11 +501,24 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                             >
                               {player.name}
                             </button>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
                               <span>{player.age} {language === 'he' ? 'שנים' : 'yrs'}</span>
                               <span>·</span>
                               <span>{player.nationality}</span>
+                              {player.contactPhone && (
+                                <>
+                                  <span>·</span>
+                                  <span className="font-mono-tabular text-emerald-700 dark:text-emerald-400" dir="ltr">
+                                    {player.contactPhone}
+                                  </span>
+                                </>
+                              )}
                             </div>
+                            {player.parentName && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {language === 'he' ? 'הורה מלווה:' : 'Parent:'} {player.parentName}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -506,6 +556,36 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                             </span>
                           </div>
                         )}
+                      </td>
+
+                      {/* Assigned Agent with quick contact tooltip on hover */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {(() => {
+                          const agentInfo = findAgentProfile(agents, player.assignedAgent);
+                          if (!player.assignedAgent) {
+                            return <span className="text-xs text-slate-400">—</span>;
+                          }
+                          return (
+                            <div className="relative group/agent inline-flex flex-col">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 cursor-default">
+                                <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>{player.assignedAgent}</span>
+                              </span>
+                              {agentInfo && (agentInfo.phone || agentInfo.email) && (
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono-tabular mt-0.5">
+                                  {agentInfo.phone || agentInfo.email}
+                                </span>
+                              )}
+                              {agentInfo && (agentInfo.phone || agentInfo.email) && (
+                                <div className="hidden group-hover/agent:block absolute bottom-full mb-1.5 left-0 rtl:left-auto rtl:right-0 z-20 p-2.5 rounded-lg bg-slate-900 text-white text-[11px] shadow-lg border border-slate-700 min-w-[190px] whitespace-normal">
+                                  <div className="font-bold text-emerald-300 mb-0.5">{agentInfo.name}</div>
+                                  {agentInfo.phone && <div className="font-mono-tabular" dir="ltr">📞 {agentInfo.phone}</div>}
+                                  {agentInfo.email && <div className="truncate">✉️ {agentInfo.email}</div>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Position */}
@@ -670,7 +750,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Contract & Club Details Box */}
+                  {/* Contract, Contact & Club Details Box */}
                   <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs space-y-1.5 mb-4">
                     <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                       <span>{t.joinedClubShort}:</span>
@@ -678,6 +758,52 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                         {formatJoinedClubDate(player.joinedCurrentClubDate) || '—'}
                       </strong>
                     </div>
+                    {player.contactPhone && (
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                        <span>{t.playerPhone}:</span>
+                        <a
+                          href={`tel:${player.contactPhone}`}
+                          className="text-emerald-700 dark:text-emerald-400 font-semibold font-mono-tabular hover:underline"
+                          dir="ltr"
+                        >
+                          {player.contactPhone}
+                        </a>
+                      </div>
+                    )}
+                    {player.parentName && (
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                        <span>{t.accompanyingParentName}:</span>
+                        <strong className="text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
+                          {player.parentName}
+                        </strong>
+                      </div>
+                    )}
+                    {player.assignedAgent && (() => {
+                      const agentInfo = findAgentProfile(agents, player.assignedAgent);
+                      return (
+                        <div
+                          className="flex items-center justify-between text-slate-500 dark:text-slate-400 relative group/cardagent"
+                          title={
+                            agentInfo && (agentInfo.phone || agentInfo.email)
+                              ? `${agentInfo.name} · ${[agentInfo.phone, agentInfo.email].filter(Boolean).join(' · ')}`
+                              : player.assignedAgent
+                          }
+                        >
+                          <span>{t.assignedAgent}:</span>
+                          <div className="text-right rtl:text-left">
+                            <strong className="text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1">
+                              <UserCheck className="w-3 h-3" />
+                              <span>{player.assignedAgent}</span>
+                            </strong>
+                            {agentInfo && (agentInfo.phone || agentInfo.email) && (
+                              <div className="text-[10px] text-slate-400 font-mono-tabular">
+                                {agentInfo.phone || agentInfo.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                       <span>{t.thContractExpiry}:</span>
                       <strong className="text-slate-800 dark:text-slate-200 font-mono-tabular">

@@ -37,7 +37,10 @@ service cloud.firestore {
           && request.resource.data.userId == userId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 128;
+          && request.resource.data.name.size() <= 128
+          && (!('contactPhone' in request.resource.data) || (request.resource.data.contactPhone is string && request.resource.data.contactPhone.size() <= 64))
+          && (!('parentName' in request.resource.data) || (request.resource.data.parentName is string && request.resource.data.parentName.size() <= 128))
+          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128));
       }
 
       // Agency represented male / youth players
@@ -48,7 +51,10 @@ service cloud.firestore {
           && request.resource.data.userId == userId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 128;
+          && request.resource.data.name.size() <= 128
+          && (!('contactPhone' in request.resource.data) || (request.resource.data.contactPhone is string && request.resource.data.contactPhone.size() <= 64))
+          && (!('parentName' in request.resource.data) || (request.resource.data.parentName is string && request.resource.data.parentName.size() <= 128))
+          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128));
       }
 
       // "In Talk With" scouting prospects
@@ -89,6 +95,15 @@ service cloud.firestore {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId)
           && request.resource.data.userId == userId;
+      }
+
+      // Agent directory & contact settings
+      match /settings/agents {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.agents is list
+          && request.resource.data.agents.size() <= 20;
       }
     }
   }

@@ -18,6 +18,8 @@ import {
   LogOut,
   Download,
   Calculator,
+  BellRing,
+  UserCog,
   X
 } from 'lucide-react';
 import { Language, Currency, NavigationTab } from '../types/player';
@@ -30,6 +32,7 @@ interface SidebarProps {
   malePlayerCount: number;
   prospectCount: number;
   criticalAlertsCount: number;
+  upcomingBirthdaysCount?: number;
   trackedCount: number;
   onOpenAddPlayer: () => void;
   onOpenAddMalePlayer: () => void;
@@ -57,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   malePlayerCount,
   prospectCount,
   criticalAlertsCount,
+  upcomingBirthdaysCount = 0,
   trackedCount,
   onOpenAddPlayer,
   onOpenAddMalePlayer,
@@ -82,6 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setActiveTab(tab);
     onCloseMobile();
   };
+
+  const totalAlertsHubCount = criticalAlertsCount + upcomingBirthdaysCount;
 
   const navItems = [
     {
@@ -114,9 +120,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'alerts' as NavigationTab,
-      label: t.contractAlerts,
-      icon: AlertTriangle,
-      count: criticalAlertsCount > 0 ? criticalAlertsCount : undefined,
+      label: t.alertsHub,
+      icon: BellRing,
+      count: totalAlertsHubCount > 0 ? totalAlertsHubCount : undefined,
       isAlert: criticalAlertsCount > 0,
       color: 'amber'
     },
@@ -131,6 +137,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'compensation' as NavigationTab,
       label: t.trainingCompensation,
       icon: Calculator,
+      count: undefined,
+      color: 'emerald'
+    },
+    {
+      id: 'agent-settings' as NavigationTab,
+      label: t.agentSettings,
+      icon: UserCog,
       count: undefined,
       color: 'emerald'
     }

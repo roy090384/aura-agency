@@ -128,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <AlertTriangle className={`w-4 h-4 ${criticalAlertsCount > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`} />
-              <span>{t.contractAlerts}</span>
+              <span>{t.alertsHub}</span>
               {criticalAlertsCount > 0 && (
                 <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[11px] font-bold rounded-full bg-amber-500 text-white font-mono-tabular">
                   {criticalAlertsCount}

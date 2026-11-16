@@ -26,7 +26,16 @@ export type YouthCategory = 'Senior' | 'U19' | 'U17' | 'U16' | 'U15' | 'U14';
 export type TrackerCategory = 'U15' | 'U16' | 'U17' | 'U19' | 'Womans';
 export type PlayerGender = 'Female' | 'Male';
 
-export type NavigationTab = 'dashboard' | 'roster' | 'male-roster' | 'in-talk' | 'alerts' | 'tracker' | 'compensation';
+export type NavigationTab = 'dashboard' | 'roster' | 'male-roster' | 'in-talk' | 'alerts' | 'tracker' | 'compensation' | 'agent-settings';
+
+export interface AgentProfile {
+  id: string;
+  name: string;
+  role?: string;
+  phone: string;
+  email: string;
+  updatedAt?: string;
+}
 
 export type Currency = 'EUR' | 'USD' | 'ILS';
 export type SalaryPeriod = 'Weekly' | 'Monthly' | 'Annual';
@@ -80,6 +89,8 @@ export interface Player {
   representationType: 'Exclusive' | 'Co-representation' | 'Commercial Only';
   contactEmail?: string;
   contactPhone?: string;
+  parentName?: string;
+  assignedAgent?: string;
   notes?: string;
   videoHighlightsUrl?: string;
   goals?: number;

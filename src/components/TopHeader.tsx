@@ -15,7 +15,9 @@ import {
   Activity,
   Cloud,
   LogIn,
-  Calculator
+  Calculator,
+  BellRing,
+  UserCog
 } from 'lucide-react';
 import { Language, Currency, NavigationTab } from '../types/player';
 import { TRANSLATIONS } from '../translations/translations';
@@ -80,11 +82,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'in-talk':
         return t.inTalkWith;
       case 'alerts':
-        return t.contractAlerts;
+        return t.alertsHub;
       case 'tracker':
         return t.playerTracker;
       case 'compensation':
         return t.trainingCompensation;
+      case 'agent-settings':
+        return t.agentSettings;
       default:
         return 'Overview';
     }
@@ -100,11 +104,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'in-talk':
         return MessageSquare;
       case 'alerts':
-        return AlertTriangle;
+        return BellRing;
       case 'tracker':
         return Activity;
       case 'compensation':
         return Calculator;
+      case 'agent-settings':
+        return UserCog;
       default:
         return LayoutDashboard;
     }

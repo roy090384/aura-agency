@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Player, Language, Currency } from '../types/player';
+import { Player, AgentProfile, Language, Currency } from '../types/player';
+import { DEFAULT_AGENTS, findAgentProfile } from '../data/defaultAgents';
 import { 
   getContractDaysRemaining, 
   getContractUrgency, 
@@ -29,7 +30,9 @@ import {
   FileText,
   Trash2,
   Tag,
-  Cake
+  Cake,
+  UserCheck,
+  Users
 } from 'lucide-react';
 import { findCountry } from '../data/countries';
 import { getPlayerBirthdayInfo } from '../utils/birthdayAlerts';
@@ -44,6 +47,7 @@ interface PlayerDetailModalProps {
   onWatchVideo: (title: string, videoUrl: string, player: Player) => void;
   language?: Language;
   currency?: Currency;
+  agents?: AgentProfile[];
 }
 
 export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
@@ -55,7 +59,8 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
   onRequestDelete,
   onWatchVideo,
   language = 'en',
-  currency = 'EUR'
+  currency = 'EUR',
+  agents = DEFAULT_AGENTS
 }) => {
   const t = TRANSLATIONS[language];
   const [activeTab, setActiveTab] = useState<'overview' | 'contract' | 'notes'>('overview');
@@ -298,20 +303,61 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                 </button>
               </div>
 
-              {/* Contact info */}
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-2">
+              {/* Contact, Parent & Assigned Agent Info */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-3">
                 <h4 className="font-bold uppercase tracking-wider text-slate-500 text-[11px]">
-                  Player & Management Contact Channels
+                  {language === 'he'
+                    ? 'פרטי קשר, הורה מלווה וסוכן מטפל'
+                    : 'Player Contact, Parent & Assigned Agent'}
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700 dark:text-slate-300">
                   <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-emerald-600" />
-                    <span>{player.contactEmail || 'agency-rep@britsportgroup.com'}</span>
+                    <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">{t.playerPhone}</span>
+                      <span className="font-mono-tabular font-semibold" dir="ltr">
+                        {player.contactPhone || (language === 'he' ? 'לא הוזן' : 'Not provided')}
+                      </span>
+                    </div>
                   </div>
+
                   <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-emerald-600" />
-                    <span>{player.contactPhone || '+44 20 7946 0912'}</span>
+                    <Users className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">{t.accompanyingParentName}</span>
+                      <span className="font-semibold">
+                        {player.parentName || (language === 'he' ? 'לא הוזן' : 'Not provided')}
+                      </span>
+                    </div>
                   </div>
+
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Email</span>
+                      <span>{player.contactEmail || 'agency-rep@britsportgroup.com'}</span>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const agentObj = findAgentProfile(agents, player.assignedAgent);
+                    return (
+                      <div className="flex items-start gap-2">
+                        <UserCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">{t.assignedAgent}</span>
+                          <strong className="text-slate-900 dark:text-white block">
+                            {player.assignedAgent || t.unassigned}
+                          </strong>
+                          {agentObj && (agentObj.phone || agentObj.email) && (
+                            <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-mono-tabular block mt-0.5">
+                              {[agentObj.phone, agentObj.email].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

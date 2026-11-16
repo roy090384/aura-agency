@@ -28,6 +28,8 @@
         "representationType": { "type": "string", "maxLength": 32 },
         "contactEmail": { "type": "string", "maxLength": 128 },
         "contactPhone": { "type": "string", "maxLength": 32 },
+        "parentName": { "type": "string", "maxLength": 128 },
+        "assignedAgent": { "type": "string", "maxLength": 128 },
         "notes": { "type": "string", "maxLength": 4096 },
         "videoHighlightsUrl": { "type": "string", "maxLength": 2048 },
         "goals": { "type": "number" },
@@ -137,6 +139,17 @@
         "statusUpdatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "fullName", "nationalityPassport", "primaryPosition", "negotiationStatus", "userId"]
+    },
+    "AgentSettings": {
+      "title": "AgentSettings",
+      "description": "Agency agent profiles and contact details (Roy Shpitalnik, Aviv Kamara).",
+      "type": "object",
+      "properties": {
+        "agents": { "type": "array" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["agents", "userId"]
     }
   },
   "firestore": {
@@ -159,6 +172,10 @@
     "/users/{userId}/settings/preferences": {
       "schema": { "$ref": "#/entities/AgencyPreferences" },
       "description": "Personalized agency configuration and display preferences."
+    },
+    "/users/{userId}/settings/agents": {
+      "schema": { "$ref": "#/entities/AgentSettings" },
+      "description": "Agency agents contact directory persisted for the user."
     },
     "/users/{userId}/foreignProspects/{foreignProspectId}": {
       "schema": { "$ref": "#/entities/ForeignProspect" },
