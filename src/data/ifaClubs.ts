@@ -170,8 +170,12 @@ export function lookupClubCategory(clubName: string, clubs: IfaClub[]): ClubCate
     if (heFound) return heFound.category;
   }
 
-  // Partial normalized fallback for prefixed names (e.g. "מ.ס. אשדוד" <-> "מועדון ספורט אשדוד")
+  // Partial normalized fallback for prefixed / sponsor-suffixed names (e.g. "מ.ס. אשדוד" <-> "מועדון ספורט אשדוד", "שמשון תל אביב" <-> "שמשון פזטל תל אביב")
   const stripped = norm.replace(/^(מס|מכ|הפועל|מכבי|ביתר)\s+/g, '');
+  if (norm.includes('שמשון') && norm.includes('תל אביב')) {
+    const shimshon = clubs.find(c => normalizeClubName(c.name).includes('שמשון') && normalizeClubName(c.name).includes('תל אביב'));
+    if (shimshon) return shimshon.category;
+  }
   if (stripped.length >= 4) {
     const partial = clubs.find(c => {
       const cn = normalizeClubName(c.name);

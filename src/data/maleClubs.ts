@@ -1,6 +1,6 @@
 import { Language } from '../types/player';
 
-export type MaleYouthLeagueGroup = 'PREMIER' | 'NATIONAL';
+export type MaleYouthLeagueGroup = 'PREMIER' | 'NATIONAL' | 'CUSTOM';
 
 export interface MaleClubOption {
   id: string;
@@ -8,6 +8,8 @@ export interface MaleClubOption {
   nameHe: string;
   leagueGroup: MaleYouthLeagueGroup;
 }
+
+export const CUSTOM_MALE_CLUBS_STORAGE_KEY = 'aura_custom_male_clubs_v1';
 
 export const ISRAELI_MALE_YOUTH_CLUBS: MaleClubOption[] = [
   // Israeli Premier League Youth Departments (מחלקות נוער - ליגת העל)
@@ -44,7 +46,8 @@ export const ISRAELI_MALE_YOUTH_CLUBS: MaleClubOption[] = [
   { id: 'mnl-kiryat-ata', nameEn: 'Maccabi Ironi Kiryat Ata', nameHe: 'מכבי עירוני קריית אתא', leagueGroup: 'NATIONAL' },
   { id: 'mnl-jaffa', nameEn: 'Maccabi Kabilio Jaffa', nameHe: 'מכבי יפו', leagueGroup: 'NATIONAL' },
   { id: 'mnl-umm-al-fahm', nameEn: 'Hapoel Umm al-Fahm', nameHe: 'הפועל אום אל-פחם', leagueGroup: 'NATIONAL' },
-  { id: 'mnl-kiryat-yam', nameEn: 'MS Kiryat Yam', nameHe: 'מ.ס. קריית ים', leagueGroup: 'NATIONAL' }
+  { id: 'mnl-kiryat-yam', nameEn: 'MS Kiryat Yam', nameHe: 'מ.ס. קריית ים', leagueGroup: 'NATIONAL' },
+  { id: 'mnl-shimshon-ta', nameEn: 'Shimshon Tel Aviv', nameHe: 'שמשון תל אביב', leagueGroup: 'NATIONAL' }
 ];
 
 export const MALE_PREMIER_CLUBS = ISRAELI_MALE_YOUTH_CLUBS.filter(c => c.leagueGroup === 'PREMIER');
@@ -52,14 +55,65 @@ export const MALE_NATIONAL_CLUBS = ISRAELI_MALE_YOUTH_CLUBS.filter(c => c.league
 
 export const MALE_OTHER_FREE_AGENT_VALUE = 'Other / Free Agent';
 
+export function loadCustomMaleClubs(): MaleClubOption[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_MALE_CLUBS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(c => c && typeof c.nameEn === 'string' && c.nameEn.trim().length > 0);
+    }
+  } catch (e) {
+    console.error('Failed to load custom male clubs', e);
+  }
+  return [];
+}
+
+export function saveCustomMaleClub(name: string): MaleClubOption[] {
+  const trimmed = name.trim();
+  const existing = loadCustomMaleClubs();
+  if (!trimmed) return existing;
+
+  const dup = existing.find(
+    c => c.nameEn.toLowerCase() === trimmed.toLowerCase() || c.nameHe.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (dup) return existing;
+
+  const newClub: MaleClubOption = {
+    id: `custom-male-${Date.now()}`,
+    nameEn: trimmed,
+    nameHe: trimmed,
+    leagueGroup: 'CUSTOM'
+  };
+  const updated = [newClub, ...existing];
+  try {
+    localStorage.setItem(CUSTOM_MALE_CLUBS_STORAGE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to save custom male club', e);
+  }
+  return updated;
+}
+
+export function removeCustomMaleClub(id: string): MaleClubOption[] {
+  const existing = loadCustomMaleClubs().filter(c => c.id !== id);
+  try {
+    localStorage.setItem(CUSTOM_MALE_CLUBS_STORAGE_KEY, JSON.stringify(existing));
+  } catch (e) {
+    console.error('Failed to remove custom male club', e);
+  }
+  return existing;
+}
+
 export function formatMaleClubValue(club: MaleClubOption, language: Language = 'en'): string {
+  if (club.nameEn === club.nameHe) return club.nameEn;
   return language === 'he' ? `${club.nameHe} (${club.nameEn})` : `${club.nameEn} (${club.nameHe})`;
 }
 
-export function findMaleClubByString(value: string): MaleClubOption | undefined {
+export function findMaleClubByString(value: string, customClubs: MaleClubOption[] = loadCustomMaleClubs()): MaleClubOption | undefined {
   const v = value.trim().toLowerCase();
   if (!v) return undefined;
-  return ISRAELI_MALE_YOUTH_CLUBS.find(
+  const all = [...ISRAELI_MALE_YOUTH_CLUBS, ...customClubs];
+  return all.find(
     c =>
       c.nameEn.toLowerCase() === v ||
       c.nameHe.toLowerCase() === v ||
@@ -72,5 +126,8 @@ export function getMaleLeagueLabel(group: MaleYouthLeagueGroup, language: Langua
   if (group === 'PREMIER') {
     return language === 'he' ? 'ליגת העל לנוער' : 'Israeli Youth Premier League';
   }
-  return language === 'he' ? 'ליגה לאומית לנוער' : 'Israeli Youth National League';
+  if (group === 'NATIONAL') {
+    return language === 'he' ? 'ליגה לאומית לנוער' : 'Israeli Youth National League';
+  }
+  return '';
 }
