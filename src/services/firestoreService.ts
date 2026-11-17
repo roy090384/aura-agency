@@ -324,16 +324,41 @@ export async function deleteForeignProspectFromFirestore(userId: string, prospec
 }
 
 /**
- * Save agency preferences (currency, language, theme) to Firestore
+ * Real-time subscription to user's agency preferences (including nextTransferWindowDate)
+ */
+export function subscribeToPreferences(
+  userId: string,
+  onUpdate: (prefs: { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string }) => void,
+  onError?: (err: any) => void
+) {
+  const path = `users/${userId}/settings/preferences`;
+  const docRef = doc(db, 'users', userId, 'settings', 'preferences');
+
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        onUpdate(snapshot.data() as { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string });
+      }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Save agency preferences (currency, language, theme, nextTransferWindowDate) to Firestore
  */
 export async function savePreferencesToFirestore(
   userId: string,
-  preferences: { currency: Currency; language: Language; isDarkMode: boolean }
+  preferences: { currency: Currency; language: Language; isDarkMode: boolean; nextTransferWindowDate?: string }
 ) {
   const path = `users/${userId}/settings/preferences`;
   try {
     const docRef = doc(db, 'users', userId, 'settings', 'preferences');
-    await setDoc(docRef, { ...preferences, userId, updatedAt: new Date().toISOString() }, { merge: true });
+    await setDoc(docRef, stripUndefined({ ...preferences, userId, updatedAt: new Date().toISOString() }), { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

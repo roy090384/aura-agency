@@ -13,7 +13,13 @@ import {
   POSITION_TRANSLATIONS, 
   getYouthBadgeColor 
 } from '../translations/translations';
-import { convertMarketValueString } from '../utils/currency';
+import { convertMarketValueString, formatCurrencyAmount } from '../utils/currency';
+import {
+  estimatePlayerTrainingCompensation,
+  formatIls,
+  getDefaultNextTransferWindowDate,
+  getSavedFemaleCpiPct
+} from '../utils/trainingCompensation';
 import { 
   X, 
   Calendar, 
@@ -48,6 +54,8 @@ interface PlayerDetailModalProps {
   language?: Language;
   currency?: Currency;
   agents?: AgentProfile[];
+  rosterType?: 'female' | 'male';
+  nextTransferWindowDate?: string;
 }
 
 export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
@@ -60,7 +68,9 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
   onWatchVideo,
   language = 'en',
   currency = 'EUR',
-  agents = DEFAULT_AGENTS
+  agents = DEFAULT_AGENTS,
+  rosterType = 'female',
+  nextTransferWindowDate = getDefaultNextTransferWindowDate()
 }) => {
   const t = TRANSLATIONS[language];
   const [activeTab, setActiveTab] = useState<'overview' | 'contract' | 'notes'>('overview');
@@ -203,31 +213,70 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
         <div className="p-6 space-y-5 max-h-[55vh] overflow-y-auto">
           {activeTab === 'overview' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 sm:col-span-2">
                   <span className="text-[11px] text-slate-500 block">Age Category</span>
                   <strong className="text-sm text-slate-900 dark:text-white">{youthCat}</strong>
                 </div>
 
-                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 sm:col-span-2">
                   <span className="text-[11px] text-slate-500 block">Position</span>
                   <strong className="text-sm text-slate-900 dark:text-white">{POSITION_TRANSLATIONS[language][player.position] || player.position}</strong>
                 </div>
 
-                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
-                  <span className="text-[11px] text-slate-500 block">Market Valuation</span>
-                  <strong className="text-sm text-emerald-700 dark:text-emerald-400 font-mono-tabular">
-                    {convertMarketValueString(player.marketValue, currency)}
-                  </strong>
-                </div>
-
-                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 col-span-2 sm:col-span-2">
                   <span className="text-[11px] text-slate-500 block">Dominant Foot</span>
                   <strong className="text-sm text-slate-900 dark:text-white">{player.dominantFoot}</strong>
                 </div>
 
+                {/* Market Valuation Box (includes Est. Training Compensation) */}
+                {(() => {
+                  const compEst = estimatePlayerTrainingCompensation(
+                    player,
+                    rosterType,
+                    nextTransferWindowDate,
+                    undefined,
+                    getSavedFemaleCpiPct()
+                  );
+                  return (
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 col-span-2 sm:col-span-3">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[11px] text-slate-500 block">Market Valuation</span>
+                        <strong className="text-sm text-emerald-700 dark:text-emerald-400 font-mono-tabular">
+                          {convertMarketValueString(player.marketValue, currency)}
+                        </strong>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-slate-200/80 dark:border-slate-700/70">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
+                            {t.estTrainingCompensation}:
+                          </span>
+                          {compEst.status === 'calculated' ? (
+                            <strong className="text-sm text-emerald-700 dark:text-emerald-400 font-mono-tabular">
+                              {formatCurrencyAmount(compEst.amountIls, 'ILS', currency)}
+                              {currency !== 'ILS' && (
+                                <span className="text-[10px] font-normal text-slate-500 ml-1 rtl:ml-0 rtl:mr-1">
+                                  ({formatIls(compEst.amountIls)})
+                                </span>
+                              )}
+                            </strong>
+                          ) : (
+                            <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                              {t.missingJoinedClubForComp}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                          {t.estimatedAsOf.replace('{date}', formatDatePretty(compEst.targetDate))} ·{' '}
+                          {rosterType === 'male' ? t.cat1GrossLabel : t.women50ThresholdLabel}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Birthday & Countdown Card */}
-                <div className="p-3 rounded-lg bg-pink-50/60 dark:bg-pink-950/20 border border-pink-200/60 dark:border-pink-900/40 col-span-2">
+                <div className="p-3 rounded-lg bg-pink-50/60 dark:bg-pink-950/20 border border-pink-200/60 dark:border-pink-900/40 col-span-2 sm:col-span-3 flex flex-col justify-between">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-semibold text-pink-700 dark:text-pink-300 flex items-center gap-1">
                       <Cake className="w-3.5 h-3.5 text-pink-500" />
@@ -251,7 +300,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                 </div>
 
                 {/* Country Card */}
-                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 sm:col-span-3">
                   <span className="text-[11px] text-slate-500 block">Nationality & Country Code</span>
                   <strong className="text-sm text-slate-900 dark:text-white flex items-center gap-1.5 mt-0.5">
                     {country && <span className="text-base">{country.flag}</span>}
@@ -263,7 +312,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                 </div>
 
                 {/* Joined Current Club Card */}
-                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 sm:col-span-3">
                   <span className="text-[11px] text-slate-500 flex items-center gap-1">
                     <Calendar className="w-3 h-3 text-emerald-600" />
                     <span>{t.joinedCurrentClub}</span>

@@ -17,7 +17,14 @@ import {
   getYouthBadgeColor,
   YOUTH_CATEGORY_LABELS 
 } from '../translations/translations';
-import { convertMarketValueString } from '../utils/currency';
+import { convertMarketValueString, formatCurrencyAmount } from '../utils/currency';
+import { loadIfaClubs } from '../data/ifaClubs';
+import {
+  estimatePlayerTrainingCompensation,
+  formatIls,
+  getDefaultNextTransferWindowDate,
+  getSavedFemaleCpiPct
+} from '../utils/trainingCompensation';
 import { 
   Search, 
   Filter, 
@@ -38,7 +45,8 @@ import {
   Tag,
   Phone,
   UserCheck,
-  Users
+  Users,
+  Calculator
 } from 'lucide-react';
 
 interface PlayerListViewProps {
@@ -54,6 +62,8 @@ interface PlayerListViewProps {
   currency?: Currency;
   rosterType?: 'female' | 'male';
   agents?: AgentProfile[];
+  nextTransferWindowDate?: string;
+  onChangeNextTransferWindowDate?: (date: string) => void;
 }
 
 export const PlayerListView: React.FC<PlayerListViewProps> = ({
@@ -68,12 +78,16 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
   language,
   currency = 'EUR',
   rosterType = 'female',
-  agents = DEFAULT_AGENTS
+  agents = DEFAULT_AGENTS,
+  nextTransferWindowDate = getDefaultNextTransferWindowDate(),
+  onChangeNextTransferWindowDate
 }) => {
   const t = TRANSLATIONS[language];
   const isMale = rosterType === 'male';
   const posTranslations = isMale ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
   const statusTranslations = isMale ? MALE_STATUS_TRANSLATIONS : STATUS_TRANSLATIONS;
+  const clubs = useMemo(() => loadIfaClubs(), []);
+  const femaleCpiPct = useMemo(() => getSavedFemaleCpiPct(), []);
   const [searchQuery, setSearchQuery] = useState('');
   const [positionFilter, setPositionFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -164,26 +178,33 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
 
   // Export to CSV
   const handleExportCSV = () => {
-    const headers = ['ID', 'Name', 'Age Category', 'Age', 'Nationality', 'Club', 'League', 'Joined Current Club', 'Player Phone', 'Accompanying Parent', 'Assigned Agent', 'Position', 'Status', 'Contract Expiry', 'Days Remaining', 'Market Value', 'Agency Fee %'];
-    const rows = filteredPlayers.map(p => [
-      p.id,
-      `"${p.name}"`,
-      p.youthCategory || 'Senior',
-      p.age,
-      `"${p.nationality}"`,
-      `"${p.clubName}"`,
-      `"${p.league}"`,
-      `"${formatJoinedClubDate(p.joinedCurrentClubDate) || '-'}"`,
-      `"${p.contactPhone || ''}"`,
-      `"${p.parentName || ''}"`,
-      `"${p.assignedAgent || ''}"`,
-      `"${p.position}"`,
-      p.status,
-      p.contractExpiryDate,
-      getContractDaysRemaining(p.contractExpiryDate),
-      `"${convertMarketValueString(p.marketValue, currency)}"`,
-      `${p.agencyFeePct}%`
-    ]);
+    const headers = ['ID', 'Name', 'Age Category', 'Age', 'Nationality', 'Club', 'League', 'Joined Current Club', 'Player Phone', 'Accompanying Parent', 'Assigned Agent', 'Position', 'Status', 'Contract Expiry', 'Days Remaining', 'Market Value', `Est. Training Compensation (${nextTransferWindowDate})`, 'Agency Fee %'];
+    const rows = filteredPlayers.map(p => {
+      const compEst = estimatePlayerTrainingCompensation(p, rosterType, nextTransferWindowDate, clubs, femaleCpiPct);
+      const compStr = compEst.status === 'calculated'
+        ? formatCurrencyAmount(compEst.amountIls, 'ILS', currency)
+        : 'N/A';
+      return [
+        p.id,
+        `"${p.name}"`,
+        p.youthCategory || 'Senior',
+        p.age,
+        `"${p.nationality}"`,
+        `"${p.clubName}"`,
+        `"${p.league}"`,
+        `"${formatJoinedClubDate(p.joinedCurrentClubDate) || '-'}"`,
+        `"${p.contactPhone || ''}"`,
+        `"${p.parentName || ''}"`,
+        `"${p.assignedAgent || ''}"`,
+        `"${p.position}"`,
+        p.status,
+        p.contractExpiryDate,
+        getContractDaysRemaining(p.contractExpiryDate),
+        `"${convertMarketValueString(p.marketValue, currency)}"`,
+        `"${compStr}"`,
+        `${p.agencyFeePct}%`
+      ];
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -238,6 +259,37 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
             <UserPlus className="w-4 h-4" />
             <span>{isMale ? t.addMalePlayer : t.addPlayer}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Global Transfer Window Target Date Configuration Bar */}
+      <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/25 border border-emerald-200/80 dark:border-emerald-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start sm:items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/70 text-emerald-700 dark:text-emerald-300 shrink-0">
+            <Calculator className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+              {t.nextTransferWindowDate}
+            </div>
+            <div className="text-[11px] text-slate-600 dark:text-slate-400">
+              {isMale
+                ? `${t.cat1GrossLabel} · ${t.estimatedAsOf.replace('{date}', formatDatePretty(nextTransferWindowDate))}`
+                : `${t.women50ThresholdLabel} · ${t.estimatedAsOf.replace('{date}', formatDatePretty(nextTransferWindowDate))}`}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+            {language === 'he' ? 'תאריך יעד:' : 'Target Date:'}
+          </label>
+          <input
+            type="date"
+            value={nextTransferWindowDate}
+            onChange={e => onChangeNextTransferWindowDate?.(e.target.value)}
+            className="px-3 py-1.5 text-xs sm:text-sm font-mono-tabular font-bold rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+          />
         </div>
       </div>
 
@@ -628,9 +680,39 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                         </span>
                       </td>
 
-                      {/* Market Value */}
-                      <td className="py-3 px-4 text-right rtl:text-left font-mono-tabular font-bold text-slate-900 dark:text-white">
-                        {convertMarketValueString(player.marketValue, currency)}
+                      {/* Market Value & Est. Training Compensation */}
+                      <td className="py-3 px-4 text-right rtl:text-left">
+                        <div className="font-mono-tabular font-bold text-slate-900 dark:text-white">
+                          {convertMarketValueString(player.marketValue, currency)}
+                        </div>
+                        {(() => {
+                          const compEst = estimatePlayerTrainingCompensation(player, rosterType, nextTransferWindowDate, clubs, femaleCpiPct);
+                          if (compEst.status !== 'calculated') {
+                            return (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {t.missingJoinedClubForComp}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div
+                              className="mt-1 inline-flex flex-col items-end rtl:items-start"
+                              title={compEst.reason || t.estimatedAsOf.replace('{date}', formatDatePretty(compEst.targetDate))}
+                            >
+                              <span className="text-[11px] font-mono-tabular font-bold text-emerald-700 dark:text-emerald-400">
+                                {t.estTrainingCompensation}: {formatCurrencyAmount(compEst.amountIls, 'ILS', currency)}
+                                {currency !== 'ILS' && (
+                                  <span className="text-[10px] font-normal text-slate-400 ml-1 rtl:ml-0 rtl:mr-1">
+                                    ({formatIls(compEst.amountIls)})
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {t.estimatedAsOf.replace('{date}', formatDatePretty(compEst.targetDate))}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Actions: View, Extend, Edit, Easy Delete */}
@@ -810,12 +892,53 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                         {formatDatePretty(player.contractExpiryDate)}
                       </strong>
                     </div>
-                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                      <span>{t.thMarketValue}:</span>
-                      <strong className="text-emerald-700 dark:text-emerald-400 font-mono-tabular">
-                        {convertMarketValueString(player.marketValue, currency)}
-                      </strong>
-                    </div>
+                    {/* Market Valuation Box (with Est. Training Compensation) */}
+                    {(() => {
+                      const compEst = estimatePlayerTrainingCompensation(player, rosterType, nextTransferWindowDate, clubs, femaleCpiPct);
+                      return (
+                        <div className="mt-2 p-2.5 rounded-md bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                            <span>{t.thMarketValue}:</span>
+                            <strong className="text-emerald-700 dark:text-emerald-400 font-mono-tabular">
+                              {convertMarketValueString(player.marketValue, currency)}
+                            </strong>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                              <Calculator className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>{t.estTrainingCompensation}:</span>
+                            </span>
+                            {compEst.status === 'calculated' ? (
+                              <strong className="font-mono-tabular text-xs text-emerald-700 dark:text-emerald-400">
+                                {formatCurrencyAmount(compEst.amountIls, 'ILS', currency)}
+                                {currency !== 'ILS' && (
+                                  <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 ml-1 rtl:ml-0 rtl:mr-1">
+                                    ({formatIls(compEst.amountIls)})
+                                  </span>
+                                )}
+                              </strong>
+                            ) : (
+                              <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                                {t.missingJoinedClubForComp}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                            <span>
+                              {t.estimatedAsOf.replace('{date}', formatDatePretty(compEst.targetDate))}
+                            </span>
+                            <span className="text-slate-400 truncate">
+                              {isMale ? t.cat1GrossLabel : t.women50ThresholdLabel}
+                            </span>
+                          </div>
+                          {compEst.status === 'calculated' && !compEst.isEligible && compEst.reason && (
+                            <div className="text-[10px] text-amber-700 dark:text-amber-400 leading-snug pt-0.5">
+                              {compEst.reason}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {player.notes && (

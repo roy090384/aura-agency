@@ -9,7 +9,8 @@ import {
   Save,
   CheckCircle2,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 
 interface AgentSettingsViewProps {
@@ -18,6 +19,8 @@ interface AgentSettingsViewProps {
   femalePlayers: Player[];
   malePlayers: Player[];
   language: Language;
+  nextTransferWindowDate?: string;
+  onChangeNextTransferWindowDate?: (date: string) => void;
 }
 
 export const AgentSettingsView: React.FC<AgentSettingsViewProps> = ({
@@ -25,7 +28,9 @@ export const AgentSettingsView: React.FC<AgentSettingsViewProps> = ({
   onSaveAgents,
   femalePlayers,
   malePlayers,
-  language
+  language,
+  nextTransferWindowDate = '',
+  onChangeNextTransferWindowDate
 }) => {
   const t = TRANSLATIONS[language];
   const isHe = language === 'he';
@@ -203,6 +208,34 @@ export const AgentSettingsView: React.FC<AgentSettingsViewProps> = ({
             );
           })}
         </div>
+
+        {/* Global Transfer Window Target Date Setting */}
+        {onChangeNextTransferWindowDate && (
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 shrink-0">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                  {t.nextTransferWindowDate}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {isHe
+                    ? 'תאריך יעד גלובלי לחישוב דמי ההשבחה המשוערים על כרטיסי השחקנים בסגל הנשים ובסגל הבנים.'
+                    : 'Global target date used to calculate Estimated Training Compensation across all Male & Female Roster player cards.'}
+                </p>
+              </div>
+            </div>
+
+            <input
+              type="date"
+              value={nextTransferWindowDate}
+              onChange={e => onChangeNextTransferWindowDate(e.target.value)}
+              className="px-3.5 py-2 text-sm font-mono-tabular font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 shrink-0"
+            />
+          </div>
+        )}
 
         {/* Save Bar */}
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">

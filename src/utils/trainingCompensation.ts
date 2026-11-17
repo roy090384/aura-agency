@@ -1,4 +1,5 @@
-import { ClubCategory, getCategoryLabelHe } from '../data/ifaClubs';
+import { ClubCategory, IfaClub, getCategoryLabelHe, loadIfaClubs, lookupClubCategory } from '../data/ifaClubs';
+import { Player } from '../types/player';
 
 export type TrainingAgeMale = 12 | 13 | 14 | 15 | 16 | 17;
 
@@ -607,3 +608,246 @@ export function buildFemaleSummaryText(
   lines.push(`סכום פיצוי סופי לתשלום: ${formatIls(result.finalCompensation)}`);
   return lines.join('\n');
 }
+
+// =====================================================================
+// ROSTER PLAYER CARD ESTIMATOR (Reuses Female & Male Engines Above)
+// =====================================================================
+
+export const FEMALE_CPI_STORAGE_KEY = 'aura_female_cpi_pct_v1';
+
+export function getSavedFemaleCpiPct(): number {
+  try {
+    const raw = localStorage.getItem(FEMALE_CPI_STORAGE_KEY);
+    const num = raw ? Number(raw) : 0;
+    return Number.isFinite(num) ? num : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function getDefaultNextTransferWindowDate(): string {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1; // 1..12
+  const day = now.getUTCDate();
+
+  // Standard winter window (~Jan 1) and summer window (~Jun 15)
+  if (month === 1 && day === 1) {
+    return `${year}-01-01`;
+  }
+  if (month < 6 || (month === 6 && day <= 15)) {
+    return `${year}-06-15`;
+  }
+  return `${year + 1}-01-01`;
+}
+
+export function normalizeJoinedClubDate(raw?: string): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return parseUtcDate(trimmed) ? trimmed : null;
+  }
+  if (/^\d{4}-\d{2}$/.test(trimmed)) {
+    const normalized = `${trimmed}-01`;
+    return parseUtcDate(normalized) ? normalized : null;
+  }
+  return null;
+}
+
+function getPlayingSeasonYearRange(joinedDate: Date, targetDate: Date): number[] {
+  // Football seasons run Jul 1 (Y) to Jun 30 (Y+1)
+  const firstSeasonStartYear =
+    joinedDate.getUTCMonth() >= 6 ? joinedDate.getUTCFullYear() : joinedDate.getUTCFullYear() - 1;
+  const lastSeasonStartYear =
+    targetDate.getUTCMonth() >= 6 ? targetDate.getUTCFullYear() : targetDate.getUTCFullYear() - 1;
+
+  const years: number[] = [];
+  for (let y = firstSeasonStartYear; y <= lastSeasonStartYear; y++) {
+    years.push(y);
+  }
+  return years;
+}
+
+function mapFemaleSeasonAgeBracket(age: number): FemaleAgeBracket | null {
+  if (age < 12) return null;
+  if (age < 15) return '12-15';
+  if (age <= 17) return '15-17';
+  if (age <= 28) return '18-28';
+  return '28+';
+}
+
+export interface PlayerCompensationEstimate {
+  status: 'calculated' | 'missing_joined_date' | 'missing_birthdate';
+  amountIls: number;
+  governingCategory?: ClubCategory;
+  isEligible: boolean;
+  reason?: string;
+  targetDate: string;
+  seasonsCount?: number;
+}
+
+/**
+ * Estimates training compensation due at targetWindowDate directly via the existing
+ * calculateFemaleTrainingCompensation / calculateMaleTrainingCompensation engine.
+ */
+export function estimatePlayerTrainingCompensation(
+  player: Player,
+  rosterType: 'female' | 'male',
+  targetWindowDate: string,
+  clubs?: IfaClub[],
+  femaleCpiPct?: number
+): PlayerCompensationEstimate {
+  const targetDt = parseUtcDate(targetWindowDate);
+  const safeTargetDate = targetDt ? targetWindowDate : getDefaultNextTransferWindowDate();
+  const effectiveTargetDt = parseUtcDate(safeTargetDate)!;
+
+  const joinedIso = normalizeJoinedClubDate(player.joinedCurrentClubDate);
+  const joinedDt = joinedIso ? parseUtcDate(joinedIso) : null;
+  if (!joinedIso || !joinedDt) {
+    return {
+      status: 'missing_joined_date',
+      amountIls: 0,
+      isEligible: false,
+      targetDate: safeTargetDate
+    };
+  }
+
+  const birthDt = parseUtcDate(player.birthDate);
+  if (!birthDt) {
+    return {
+      status: 'missing_birthdate',
+      amountIls: 0,
+      isEligible: false,
+      targetDate: safeTargetDate
+    };
+  }
+
+  if (joinedDt.getTime() > effectiveTargetDt.getTime()) {
+    return {
+      status: 'calculated',
+      amountIls: 0,
+      isEligible: false,
+      targetDate: safeTargetDate
+    };
+  }
+
+  const seasonStartYears = getPlayingSeasonYearRange(joinedDt, effectiveTargetDt);
+
+  if (rosterType === 'female') {
+    const seasons: FemaleTrainingSeason[] = [];
+    for (const y of seasonStartYears) {
+      // IFA season active competition span (~Jul 1 Y to May 31 Y+1)
+      const seasonStart = new Date(Date.UTC(y, 6, 1));
+      const seasonEnd = new Date(Date.UTC(y + 1, 4, 31));
+      const overlapStart = Math.max(joinedDt.getTime(), seasonStart.getTime());
+      const overlapEnd = Math.min(effectiveTargetDt.getTime(), seasonEnd.getTime());
+      const overlapDays =
+        overlapEnd >= overlapStart ? Math.floor((overlapEnd - overlapStart) / MS_PER_DAY) + 1 : 0;
+
+      if (overlapDays <= 0) continue;
+
+      // Evaluate player age during the season (as of Jan 1 of Y+1 or target date if earlier)
+      const evalDateDt =
+        effectiveTargetDt.getTime() < new Date(Date.UTC(y + 1, 0, 1)).getTime()
+          ? effectiveTargetDt
+          : new Date(Date.UTC(y + 1, 0, 1));
+      const evalIso = evalDateDt.toISOString().split('T')[0];
+      const seasonAge = calculateExactAge(player.birthDate, evalIso);
+      if (seasonAge === null) continue;
+
+      const bracket = mapFemaleSeasonAgeBracket(seasonAge);
+      if (!bracket) continue;
+
+      // More than 5 months (~152 days) in the season
+      const overFiveMonths = overlapDays > 152;
+
+      seasons.push({
+        id: `est-fs-${y}`,
+        seasonLabel: `${y}/${String((y + 1) % 100).padStart(2, '0')}`,
+        ageBracket: bracket,
+        overFiveMonths,
+        // Requirement: assume player participates in >= 50% of official match minutes
+        participationTier: 'OVER_50'
+      });
+    }
+
+    const qualifyingSeasonsCount = seasons.filter(s => s.overFiveMonths).length;
+    const cpiPct = femaleCpiPct !== undefined ? femaleCpiPct : getSavedFemaleCpiPct();
+
+    const femaleInput: FemaleCalculationInput = {
+      ageInputMode: 'dob',
+      birthDate: player.birthDate,
+      transferDate: safeTargetDate,
+      exactAgeAtTransfer: player.age,
+      receivingLeagueTier: 'TOP',
+      twoConsecutiveSeasons: qualifyingSeasonsCount >= 2,
+      minimumMinutesMet: true, // >= 50% threshold satisfied
+      isFinishingWrittenContract: true,
+      article22eAge24FirstTransfer: true,
+      seasons,
+      isAcademySquad: false,
+      nationalTeamTier: 'NONE',
+      cpiAdjustmentPct: cpiPct
+    };
+
+    const res = calculateFemaleTrainingCompensation(femaleInput);
+    return {
+      status: 'calculated',
+      amountIls: res.finalCompensation,
+      isEligible: res.isEligible,
+      reason: res.disqualificationReasons[0],
+      targetDate: safeTargetDate,
+      seasonsCount: qualifyingSeasonsCount
+    };
+  }
+
+  // Male Roster Estimation:
+  // Target transfer destination = Category 1; output FULL GROSS amount with zero deductions
+  const activeClubs = clubs ?? loadIfaClubs();
+  const transferringCategory = lookupClubCategory(player.clubName, activeClubs);
+
+  // Count distinct playing seasons where player was registered in current club
+  const registeredSeasons = seasonStartYears.filter(y => {
+    const sStart = Date.UTC(y, 6, 1);
+    const sEnd = Date.UTC(y + 1, 5, 30);
+    return Math.min(effectiveTargetDt.getTime(), sEnd) >= Math.max(joinedDt.getTime(), sStart);
+  }).length;
+
+  const maleInput: MaleCalculationInput = {
+    transferringClubName: player.clubName,
+    transferringCategory,
+    receivingClubName: 'קטגוריה 1',
+    receivingCategory: 1,
+    ageInputMode: 'dob',
+    birthDate: player.birthDate,
+    exactAgeAtTransfer: player.age,
+    transferDate: safeTargetDate,
+    twoConsecutiveSeasons: registeredSeasons >= 2,
+    playedAtLeast25PctMinutes: true,
+    cancelledOrWaivedInWriting: false,
+    periodInputMode: 'dates',
+    registrationStartDate: joinedIso,
+    registrationEndDate: safeTargetDate,
+    loanPeriods: [],
+    yearData: {
+      12: { manualDays: 0, membershipFee: 0 },
+      13: { manualDays: 0, membershipFee: 0 },
+      14: { manualDays: 0, membershipFee: 0 },
+      15: { manualDays: 0, membershipFee: 0 },
+      16: { manualDays: 0, membershipFee: 0 },
+      17: { manualDays: 0, membershipFee: 0 }
+    }
+  };
+
+  const res = calculateMaleTrainingCompensation(maleInput);
+  return {
+    status: 'calculated',
+    amountIls: res.totalGrossBeforeFees, // Unreduced gross sum (no membership fees or solidarity reductions)
+    governingCategory: res.governingCategory,
+    isEligible: res.isEligible,
+    reason: res.disqualificationReasons[0],
+    targetDate: safeTargetDate,
+    seasonsCount: registeredSeasons
+  };
+}
+

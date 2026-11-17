@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Player, PlayerPosition, PlayerStatus, YouthCategory, Language, AgentProfile } from '../types/player';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Player, PlayerPosition, PlayerStatus, YouthCategory, Language, AgentProfile, Currency } from '../types/player';
 import { TRANSLATIONS, POSITION_TRANSLATIONS, getYouthBadgeColor } from '../translations/translations';
 import { DEFAULT_AGENTS, findAgentProfile } from '../data/defaultAgents';
-import { X, User, Calendar, Shield, DollarSign, Video, Mail, Phone, Check, Tag, Cake, UserCheck, Users } from 'lucide-react';
+import { X, User, Calendar, Shield, DollarSign, Video, Mail, Phone, Check, Tag, Cake, UserCheck, Users, Calculator } from 'lucide-react';
 import { NationalitySelect } from './NationalitySelect';
 import { WomenClubSelect } from './WomenClubSelect';
 import { MaleClubSelect } from './MaleClubSelect';
 import { calculateAgeFromBirthDate } from '../utils/birthdayAlerts';
+import { formatDatePretty } from '../utils/contractAlerts';
+import { formatCurrencyAmount } from '../utils/currency';
+import { loadIfaClubs } from '../data/ifaClubs';
+import {
+  estimatePlayerTrainingCompensation,
+  formatIls,
+  getDefaultNextTransferWindowDate,
+  getSavedFemaleCpiPct
+} from '../utils/trainingCompensation';
 
 interface PlayerModalProps {
   isOpen: boolean;
@@ -14,8 +23,10 @@ interface PlayerModalProps {
   onSave: (player: Player) => void;
   playerToEdit?: Player | null;
   language?: Language;
+  currency?: Currency;
   rosterType?: 'female' | 'male';
   agents?: AgentProfile[];
+  nextTransferWindowDate?: string;
 }
 
 const POSITIONS: PlayerPosition[] = [
@@ -56,12 +67,16 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
   onSave,
   playerToEdit,
   language = 'en',
+  currency = 'EUR',
   rosterType = 'female',
-  agents = DEFAULT_AGENTS
+  agents = DEFAULT_AGENTS,
+  nextTransferWindowDate = getDefaultNextTransferWindowDate()
 }) => {
   const t = TRANSLATIONS[language];
   const isMale = rosterType === 'male';
   const youthOptions = isMale ? MALE_YOUTH_OPTIONS : FEMALE_YOUTH_OPTIONS;
+  const clubs = useMemo(() => loadIfaClubs(), []);
+  const femaleCpiPct = useMemo(() => getSavedFemaleCpiPct(), []);
   const [name, setName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [age, setAge] = useState<number>(isMale ? 17 : 22);
@@ -598,6 +613,80 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
                   onChange={e => setMarketValue(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono-tabular"
                 />
+                {(() => {
+                  const liveEstimate = estimatePlayerTrainingCompensation(
+                    {
+                      id: playerToEdit?.id || 'draft',
+                      name,
+                      photoUrl,
+                      age,
+                      birthDate,
+                      nationality,
+                      countryCode,
+                      clubName,
+                      league,
+                      position,
+                      youthCategory,
+                      jerseyNumber,
+                      dominantFoot,
+                      contractStartDate,
+                      contractExpiryDate,
+                      joinedCurrentClubDate,
+                      status,
+                      marketValue,
+                      agencyFeePct,
+                      representationType,
+                      contactEmail,
+                      contactPhone,
+                      parentName,
+                      assignedAgent,
+                      videoHighlightsUrl,
+                      notes,
+                      createdAt: playerToEdit?.createdAt || new Date().toISOString()
+                    },
+                    rosterType,
+                    nextTransferWindowDate,
+                    clubs,
+                    femaleCpiPct
+                  );
+                  return (
+                    <div className="mt-1.5 px-2.5 py-1.5 rounded-md bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-900/50 text-[11px] flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                          <Calculator className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{t.estTrainingCompensation}:</span>
+                        </span>
+                        {liveEstimate.status === 'calculated' ? (
+                          <div className="font-mono-tabular font-bold text-emerald-700 dark:text-emerald-400">
+                            {formatCurrencyAmount(liveEstimate.amountIls, 'ILS', currency)}
+                            {currency !== 'ILS' && (
+                              <span className="text-[10px] font-normal text-slate-500 ml-1 rtl:ml-0 rtl:mr-1">
+                                ({formatIls(liveEstimate.amountIls)})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400">
+                            {t.missingJoinedClubForComp}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                          {t.estimatedAsOf.replace('{date}', formatDatePretty(liveEstimate.targetDate))}
+                        </div>
+                      </div>
+                      {liveEstimate.status === 'calculated' && (
+                        <button
+                          type="button"
+                          onClick={() => setMarketValue(formatCurrencyAmount(liveEstimate.amountIls, 'ILS', currency))}
+                          className="px-2 py-1 text-[10px] font-bold rounded bg-emerald-700 hover:bg-emerald-800 text-white shrink-0 transition-colors"
+                          title={language === 'he' ? 'הזן ערך זה לשווי השוק' : 'Use as Market Valuation'}
+                        >
+                          {language === 'he' ? 'הזן' : 'Use'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>

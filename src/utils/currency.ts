@@ -52,6 +52,16 @@ export function convertCurrency(
   return Math.round(inEur * EXCHANGE_RATES[to]);
 }
 
+export function formatCurrencyAmount(
+  amount: number,
+  fromCurrency: Currency = 'ILS',
+  displayCurrency: Currency = 'EUR'
+): string {
+  const converted = convertCurrency(amount, fromCurrency, displayCurrency);
+  const symbol = CURRENCY_SYMBOLS[displayCurrency];
+  return `${symbol}${new Intl.NumberFormat('en-US').format(converted)}`;
+}
+
 /**
  * Formats a salary amount in the target currency with appropriate symbol and period
  */

@@ -90,11 +90,12 @@ service cloud.firestore {
           && request.resource.data.fullName.size() <= 128;
       }
 
-      // User preferences (currency, language, theme)
+      // User preferences (currency, language, theme, transfer window date)
       match /settings/preferences {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId)
-          && request.resource.data.userId == userId;
+          && request.resource.data.userId == userId
+          && (!('nextTransferWindowDate' in request.resource.data) || (request.resource.data.nextTransferWindowDate is string && request.resource.data.nextTransferWindowDate.size() <= 32));
       }
 
       // Agent directory & contact settings

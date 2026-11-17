@@ -5,6 +5,7 @@ import { INITIAL_TRACKED_PLAYERS } from './data/mockTrackedPlayers';
 import { DEFAULT_AGENTS } from './data/defaultAgents';
 import { getContractDaysRemaining } from './utils/contractAlerts';
 import { getUpcomingBirthdays } from './utils/birthdayAlerts';
+import { getDefaultNextTransferWindowDate } from './utils/trainingCompensation';
 import { TRANSLATIONS } from './translations/translations';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
@@ -50,6 +51,7 @@ import {
   deleteForeignProspectFromFirestore,
   subscribeToAgents,
   saveAgentsToFirestore,
+  subscribeToPreferences,
   savePreferencesToFirestore, 
   syncLocalDataToFirestoreIfEmpty 
 } from './services/firestoreService';
@@ -87,6 +89,17 @@ export default function App() {
       console.error('Failed to load currency', e);
     }
     return 'EUR';
+  });
+
+  // Global Target Transfer Window Opening Date (used for roster training compensation estimates)
+  const [nextTransferWindowDate, setNextTransferWindowDate] = useState<string>(() => {
+    try {
+      const stored = localStorage.getItem('aura_next_transfer_window_date_v1');
+      if (stored && /^\d{4}-\d{2}-\d{2}$/.test(stored)) return stored;
+    } catch (e) {
+      console.error('Failed to load nextTransferWindowDate', e);
+    }
+    return getDefaultNextTransferWindowDate();
   });
 
   // User-owned Female Roster Players State
@@ -333,6 +346,15 @@ export default function App() {
     }
   }, [agents]);
 
+  // Persist global transfer window opening date
+  useEffect(() => {
+    try {
+      localStorage.setItem('aura_next_transfer_window_date_v1', nextTransferWindowDate);
+    } catch (e) {
+      console.error('Failed to save nextTransferWindowDate', e);
+    }
+  }, [nextTransferWindowDate]);
+
   // Firebase Auth and real-time Firestore synchronization
   useEffect(() => {
     let unsubPlayers: (() => void) | undefined;
@@ -341,6 +363,7 @@ export default function App() {
     let unsubTracked: (() => void) | undefined;
     let unsubForeign: (() => void) | undefined;
     let unsubAgents: (() => void) | undefined;
+    let unsubPrefs: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -377,6 +400,12 @@ export default function App() {
         unsubAgents = subscribeToAgents(user.uid, (remoteAgents) => {
           setAgents(remoteAgents);
         });
+
+        unsubPrefs = subscribeToPreferences(user.uid, (remotePrefs) => {
+          if (remotePrefs.nextTransferWindowDate && /^\d{4}-\d{2}-\d{2}$/.test(remotePrefs.nextTransferWindowDate)) {
+            setNextTransferWindowDate(remotePrefs.nextTransferWindowDate);
+          }
+        });
       } else {
         if (unsubPlayers) unsubPlayers();
         if (unsubMalePlayers) unsubMalePlayers();
@@ -384,6 +413,7 @@ export default function App() {
         if (unsubTracked) unsubTracked();
         if (unsubForeign) unsubForeign();
         if (unsubAgents) unsubAgents();
+        if (unsubPrefs) unsubPrefs();
       }
     });
 
@@ -395,6 +425,7 @@ export default function App() {
       if (unsubTracked) unsubTracked();
       if (unsubForeign) unsubForeign();
       if (unsubAgents) unsubAgents();
+      if (unsubPrefs) unsubPrefs();
     };
   }, []);
 
@@ -404,6 +435,18 @@ export default function App() {
       savePreferencesToFirestore(currentUser.uid, { language, currency, isDarkMode }).catch(console.error);
     }
   }, [currentUser, language, currency, isDarkMode]);
+
+  const handleChangeNextTransferWindowDate = (newDate: string) => {
+    setNextTransferWindowDate(newDate);
+    if (currentUser && /^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+      savePreferencesToFirestore(currentUser.uid, {
+        language,
+        currency,
+        isDarkMode,
+        nextTransferWindowDate: newDate
+      }).catch(console.error);
+    }
+  };
 
   // Authentication Handlers (Google OAuth, Email/Password, and Agent Session)
   const handleGoogleLogin = async () => {
@@ -1154,6 +1197,7 @@ export default function App() {
             }}
             language={language}
             currency={currency}
+            nextTransferWindowDate={nextTransferWindowDate}
           />
         )}
 
@@ -1162,6 +1206,8 @@ export default function App() {
             players={players}
             rosterType="female"
             agents={agents}
+            nextTransferWindowDate={nextTransferWindowDate}
+            onChangeNextTransferWindowDate={handleChangeNextTransferWindowDate}
             onSelectPlayer={player => {
               setDetailPlayerRosterType('female');
               setDetailPlayer(player);
@@ -1193,6 +1239,8 @@ export default function App() {
             players={malePlayers}
             rosterType="male"
             agents={agents}
+            nextTransferWindowDate={nextTransferWindowDate}
+            onChangeNextTransferWindowDate={handleChangeNextTransferWindowDate}
             onSelectPlayer={player => {
               setDetailPlayerRosterType('male');
               setDetailPlayer(player);
@@ -1331,6 +1379,8 @@ export default function App() {
             femalePlayers={players}
             malePlayers={malePlayers}
             language={language}
+            nextTransferWindowDate={nextTransferWindowDate}
+            onChangeNextTransferWindowDate={handleChangeNextTransferWindowDate}
           />
         )}
       </main>
@@ -1402,8 +1452,10 @@ export default function App() {
         onSave={handleSavePlayer}
         playerToEdit={playerToEdit}
         language={language}
+        currency={currency}
         rosterType={playerModalRosterType}
         agents={agents}
+        nextTransferWindowDate={nextTransferWindowDate}
       />
 
       {/* In Talk With Prospect Modal */}
@@ -1461,6 +1513,8 @@ export default function App() {
         language={language}
         currency={currency}
         agents={agents}
+        rosterType={detailPlayerRosterType}
+        nextTransferWindowDate={nextTransferWindowDate}
       />
 
       {/* Quick Extend Contract Modal */}

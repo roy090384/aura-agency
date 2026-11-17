@@ -1,3 +1,5 @@
+import { findMaleClubByString } from './maleClubs';
+
 export type ClubCategory = 1 | 2 | 3 | 4;
 
 export interface IfaClub {
@@ -135,14 +137,50 @@ export function resetIfaClubsToDefault(): IfaClub[] {
 }
 
 export function normalizeClubName(name: string): string {
-  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+  return name
+    .trim()
+    .replace(/[-–—]/g, ' ')
+    .replace(/["'״׳.]/g, '')
+    .replace(/קריית/g, 'קרית')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 }
 
 export function lookupClubCategory(clubName: string, clubs: IfaClub[]): ClubCategory {
-  const norm = normalizeClubName(clubName);
-  if (!norm) return 4;
-  const found = clubs.find(c => normalizeClubName(c.name) === norm);
-  return found ? found.category : 4;
+  const raw = clubName.trim();
+  if (!raw) return 4;
+
+  const norm = normalizeClubName(raw);
+  const exact = clubs.find(c => normalizeClubName(c.name) === norm);
+  if (exact) return exact.category;
+
+  // Match English/Hebrew formatted string like "Maccabi Tel Aviv (מכבי תל אביב)"
+  const parenMatch = raw.match(/\(([^)]+)\)/);
+  if (parenMatch) {
+    const innerNorm = normalizeClubName(parenMatch[1]);
+    const innerFound = clubs.find(c => normalizeClubName(c.name) === innerNorm);
+    if (innerFound) return innerFound.category;
+  }
+
+  // Match via known male youth club directory (English -> Hebrew name)
+  const maleClub = findMaleClubByString(raw);
+  if (maleClub) {
+    const heNorm = normalizeClubName(maleClub.nameHe);
+    const heFound = clubs.find(c => normalizeClubName(c.name) === heNorm);
+    if (heFound) return heFound.category;
+  }
+
+  // Partial normalized fallback for prefixed names (e.g. "מ.ס. אשדוד" <-> "מועדון ספורט אשדוד")
+  const stripped = norm.replace(/^(מס|מכ|הפועל|מכבי|ביתר)\s+/g, '');
+  if (stripped.length >= 4) {
+    const partial = clubs.find(c => {
+      const cn = normalizeClubName(c.name);
+      return cn === stripped || cn.endsWith(` ${stripped}`) || (norm.includes('אשדוד') && cn.includes('אשדוד'));
+    });
+    if (partial) return partial.category;
+  }
+
+  return 4;
 }
 
 /**
