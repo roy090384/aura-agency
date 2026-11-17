@@ -53,8 +53,8 @@ export function getUrgencyBadgeConfig(urgency: ContractUrgency, days: number) {
       return {
         label: days > 365 ? `${years} yrs (${days}d)` : `${days}d left`,
         shortLabel: 'Secure',
-        badgeClass: 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40',
-        dotClass: 'bg-emerald-500',
+        badgeClass: 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-900/40',
+        dotClass: 'bg-green-600',
         textClass: 'text-slate-600 dark:text-slate-400',
         alertLevel: 'success',
       };

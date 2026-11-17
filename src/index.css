@@ -1,6 +1,48 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* BRIT SPORT GROUP — Brushed Gold & Obsidian Executive Palette */
+@theme {
+  /* Primary Brand Accent: Brushed Champagne Gold & Burnished Bronze */
+  --color-emerald-50: #FBF8F2;
+  --color-emerald-100: #F4ECDD;
+  --color-emerald-200: #E6D5B6;
+  --color-emerald-300: #D4BC91;
+  --color-emerald-400: #C8A874;
+  --color-emerald-500: #B5925E;
+  --color-emerald-600: #916F3D;
+  --color-emerald-700: #7D5D31;
+  --color-emerald-800: #634824;
+  --color-emerald-900: #473318;
+  --color-emerald-950: #261B0D;
+
+  /* Secondary Brand Complement: Deep Espresso Bronze */
+  --color-teal-50: #F9F6F0;
+  --color-teal-100: #EFE7D8;
+  --color-teal-200: #DFCFAF;
+  --color-teal-300: #CBB284;
+  --color-teal-400: #B89862;
+  --color-teal-500: #9E7D4A;
+  --color-teal-600: #826438;
+  --color-teal-700: #694F2B;
+  --color-teal-800: #523D21;
+  --color-teal-900: #3B2B17;
+  --color-teal-950: #21180C;
+
+  /* Warm Alabaster & Obsidian Neutrals */
+  --color-slate-50: #F9F8F5;
+  --color-slate-100: #F2EFEA;
+  --color-slate-200: #E5E0D6;
+  --color-slate-300: #D1C9BA;
+  --color-slate-400: #8E877B;
+  --color-slate-500: #6B655B;
+  --color-slate-600: #4E4A42;
+  --color-slate-700: #35322E;
+  --color-slate-800: #201F1D;
+  --color-slate-900: #141413;
+  --color-slate-950: #0A0A09;
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -11,3 +53,4 @@
   font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
 }
+

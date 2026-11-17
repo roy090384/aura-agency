@@ -74,9 +74,9 @@ export function getPercentageColor(percentage: number): {
 } {
   if (percentage >= 80) {
     return {
-      bg: 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800',
-      text: 'text-emerald-700 dark:text-emerald-300',
-      barColor: 'bg-emerald-500',
+      bg: 'bg-green-50 dark:bg-green-950/60 border-green-300 dark:border-green-800',
+      text: 'text-green-700 dark:text-green-300',
+      barColor: 'bg-green-600',
     };
   }
   if (percentage >= 50) {
@@ -173,10 +173,10 @@ export function getTargetProgressColor(progress: TargetProgressResult): {
 
   if (progress.isReached) {
     return {
-      badgeBg: 'bg-emerald-100 dark:bg-emerald-950/80',
-      badgeText: 'text-emerald-800 dark:text-emerald-200',
-      badgeBorder: 'border-emerald-300 dark:border-emerald-700',
-      barColor: 'bg-emerald-500',
+      badgeBg: 'bg-green-100 dark:bg-green-950/80',
+      badgeText: 'text-green-800 dark:text-green-200',
+      badgeBorder: 'border-green-300 dark:border-green-700',
+      barColor: 'bg-green-600',
     };
   }
 

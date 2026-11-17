@@ -59,10 +59,15 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-3 shrink-0">
             <button 
               onClick={() => setActiveTab('dashboard')} 
-              className="flex items-center gap-2.5 text-left group"
+              className="flex items-center gap-3 text-left group"
             >
-              <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-sm shadow-emerald-500/20 group-hover:bg-emerald-500 transition-colors">
-                B
+              <div className="rounded-lg dark:bg-[#FAF8F3] dark:px-2 dark:py-1 shrink-0">
+                <img
+                  src="/assets/aistudio/Brit_gold_c815fbe0.png"
+                  alt={t.brandName}
+                  referrerPolicy="no-referrer"
+                  className="h-9 w-auto object-contain"
+                />
               </div>
               <div>
                 <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white block leading-none">

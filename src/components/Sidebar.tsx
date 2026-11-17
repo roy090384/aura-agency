@@ -12,7 +12,6 @@ import {
   Coins,
   Activity,
   Plus,
-  Shield,
   Cloud,
   LogIn,
   LogOut,
@@ -171,30 +170,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           : 'ltr:-translate-x-full ltr:lg:translate-x-0 rtl:translate-x-full rtl:lg:translate-x-0'}
       `}>
         
-        {/* Top Header & Brand Wordmark */}
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800/80">
-          <div className="flex items-center justify-between">
-            <button 
+        {/* Top Header & Official BRIT SPORT GROUP Brand Logo */}
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-start justify-between gap-2">
+            <button
               onClick={() => handleNavClick('dashboard')}
-              className="flex items-center gap-3 text-left rtl:text-right group"
+              className="flex flex-col items-start text-left rtl:text-right group min-w-0 flex-1"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-800 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-900/20 group-hover:scale-105 transition-transform shrink-0">
-                <Shield className="w-5 h-5 fill-current opacity-90" />
+              <div className="rounded-xl transition-all dark:bg-[#FAF8F3] dark:px-3 dark:py-2 dark:border dark:border-emerald-300/40 dark:shadow-xs">
+                <img
+                  src="/assets/aistudio/Brit_gold_c815fbe0.png"
+                  alt={t.brandName}
+                  referrerPolicy="no-referrer"
+                  className="h-12 w-auto object-contain group-hover:opacity-90 transition-opacity"
+                />
               </div>
-              <div className="min-w-0">
-                <div className="font-extrabold text-xs sm:text-[13px] leading-snug tracking-wide text-slate-900 dark:text-white uppercase font-sans">
-                  {t.brandName}
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  {t.brandSubtitle}
-                </div>
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate mt-1.5 w-full">
+                {t.brandSubtitle}
               </div>
             </button>
 
             {/* Mobile Close Button */}
             <button
               onClick={onCloseMobile}
-              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg lg:hidden"
+              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg lg:hidden shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -307,10 +306,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/40 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                    <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+                    <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>{isCloudSyncing ? t.syncingStatus : t.syncedCloud}</span>
                   </span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 </div>
                 <div className="flex items-center gap-2">
                   {currentUser.photoURL ? (

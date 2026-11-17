@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  Cloud, 
   ShieldCheck, 
   AlertTriangle, 
   ExternalLink, 
@@ -109,9 +108,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       >
         {/* Header */}
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/40">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs">
-              <Cloud className="w-5 h-5" />
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-white px-2 py-1.5 border border-slate-200 dark:border-emerald-300/30 shadow-2xs shrink-0">
+              <img
+                src="/assets/aistudio/Brit_gold_c815fbe0.png"
+                alt="BRIT SPORT GROUP"
+                referrerPolicy="no-referrer"
+                className="h-8 w-auto object-contain"
+              />
             </div>
             <div>
               <h3 className="font-bold text-base leading-tight">

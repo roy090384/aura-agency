@@ -123,7 +123,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           
-          {/* Left: Mobile Sidebar Hamburger & Current Section Title */}
+          {/* Left: Mobile Sidebar Hamburger, Mobile Brand Mark & Current Section Title */}
           <div className="flex items-center gap-3">
             <button
               onClick={onOpenMobileSidebar}
@@ -133,11 +133,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               <Menu className="w-5 h-5" />
             </button>
 
+            <div className="lg:hidden rounded-lg dark:bg-[#FAF8F3] dark:px-1.5 dark:py-1 shrink-0">
+              <img
+                src="/assets/aistudio/Brit_gold_c815fbe0.png"
+                alt={t.brandName}
+                referrerPolicy="no-referrer"
+                className="h-7 w-auto object-contain"
+              />
+            </div>
+
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hidden sm:flex">
                 <Icon className="w-4 h-4" />
               </div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
                 {getSectionTitle()}
               </h2>
             </div>
@@ -187,9 +196,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50/80 dark:bg-emerald-950/40 text-xs text-emerald-800 dark:text-emerald-300 font-semibold"
                 title={`Cloud Synced as ${currentUser.email}`}
               >
-                <Cloud className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="truncate max-w-[120px]">{currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               </div>
             ) : onLogin ? (
               <button
