@@ -40,7 +40,11 @@ service cloud.firestore {
           && request.resource.data.name.size() <= 128
           && (!('contactPhone' in request.resource.data) || (request.resource.data.contactPhone is string && request.resource.data.contactPhone.size() <= 64))
           && (!('parentName' in request.resource.data) || (request.resource.data.parentName is string && request.resource.data.parentName.size() <= 128))
-          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128));
+          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128))
+          && (!('trainingAgreement' in request.resource.data) || (
+            request.resource.data.trainingAgreement is map
+            && (!('releaseClubs' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.releaseClubs is list && request.resource.data.trainingAgreement.releaseClubs.size() <= 25))
+          ));
       }
 
       // Agency represented male / youth players
@@ -54,7 +58,11 @@ service cloud.firestore {
           && request.resource.data.name.size() <= 128
           && (!('contactPhone' in request.resource.data) || (request.resource.data.contactPhone is string && request.resource.data.contactPhone.size() <= 64))
           && (!('parentName' in request.resource.data) || (request.resource.data.parentName is string && request.resource.data.parentName.size() <= 128))
-          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128));
+          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128))
+          && (!('trainingAgreement' in request.resource.data) || (
+            request.resource.data.trainingAgreement is map
+            && (!('releaseClubs' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.releaseClubs is list && request.resource.data.trainingAgreement.releaseClubs.size() <= 25))
+          ));
       }
 
       // "In Talk With" scouting prospects
@@ -76,7 +84,10 @@ service cloud.firestore {
           && request.resource.data.userId == userId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 128;
+          && request.resource.data.name.size() <= 128
+          && (!('linkedPlayerId' in request.resource.data) || (request.resource.data.linkedPlayerId is string && request.resource.data.linkedPlayerId.size() <= 128))
+          && (!('linkedRosterType' in request.resource.data) || (request.resource.data.linkedRosterType is string && request.resource.data.linkedRosterType.size() <= 16))
+          && (!('minutesCheckpoint' in request.resource.data) || (request.resource.data.minutesCheckpoint is string && request.resource.data.minutesCheckpoint.size() <= 32));
       }
 
       // International / foreign female prospects

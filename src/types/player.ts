@@ -42,6 +42,47 @@ export type SalaryPeriod = 'Weekly' | 'Monthly' | 'Annual';
 
 export type Language = 'en' | 'he';
 
+export type MinutesClausePct = 30 | 40 | 50 | 55 | 60 | 70 | 80;
+export type LeaveCheckpoint = 'Winter 27' | 'Summer 27' | 'Winter 28';
+export type ContractOptionSide = 'None' | 'Club Option' | 'Player Option' | 'Mutual Option';
+
+export interface ReleaseClubClause {
+  id: string;
+  clubName: string;
+  amount: string;
+  notes?: string;
+}
+
+export interface TrainingAgreementBenefits {
+  shoes?: boolean;
+  shoesDetails?: string;
+  nationalTeamBonus?: boolean;
+  nationalTeamBonusAmount?: string;
+  appearancesBonus?: boolean;
+  appearancesBonusAmount?: string;
+  appearancesThreshold?: string;
+}
+
+export interface TrainingAgreementData {
+  contractMode: 'contracted' | 'ifa_regulations';
+  clubContractEndDate?: string;
+  hasOneSideOption?: boolean;
+  optionSide?: ContractOptionSide;
+  optionNote?: string;
+  salaryAmount?: string;
+  salaryPeriod?: SalaryPeriod;
+  minutesClauseEnabled?: boolean;
+  minutesThresholdPct?: MinutesClausePct;
+  minutesCheckpoint?: LeaveCheckpoint;
+  syncMinutesWithTracker?: boolean;
+  benefits?: TrainingAgreementBenefits;
+  releaseToBiggerClubsEnabled?: boolean;
+  releaseClubs?: ReleaseClubClause[];
+  ifaRegulationNote?: string;
+  customNotes?: string;
+  updatedAt?: string;
+}
+
 export interface TrackedPlayer {
   id: string;
   name: string;
@@ -61,6 +102,11 @@ export interface TrackedPlayer {
   goals: number;
   assists: number;
   goalInvolvementTarget?: number; // Target for Goal Involvements (Goals + Assists)
+  // Live Training Agreement Minutes Clause sync
+  linkedPlayerId?: string;
+  linkedRosterType?: 'female' | 'male';
+  minMinutesClausePct?: number;
+  minutesCheckpoint?: string;
   notes?: string;
   createdAt: string;
 }
@@ -96,6 +142,7 @@ export interface Player {
   goals?: number;
   assists?: number;
   goalInvolvementTarget?: number;
+  trainingAgreement?: TrainingAgreementData;
   createdAt: string;
 }
 

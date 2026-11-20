@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Player, TalkProspect, ForeignProspect, ConversationLog, YouthCategory, AgentProfile, Language, Currency, TrackedPlayer, TrackerCategory, NavigationTab } from './types/player';
+import { Player, TalkProspect, ForeignProspect, ConversationLog, YouthCategory, AgentProfile, Language, Currency, TrackedPlayer, TrackerCategory, NavigationTab, TrainingAgreementData } from './types/player';
 import { INITIAL_PLAYERS, INITIAL_PROSPECTS } from './data/mockPlayers';
 import { INITIAL_TRACKED_PLAYERS } from './data/mockTrackedPlayers';
 import { DEFAULT_AGENTS } from './data/defaultAgents';
 import { getContractDaysRemaining } from './utils/contractAlerts';
 import { getUpcomingBirthdays } from './utils/birthdayAlerts';
 import { getDefaultNextTransferWindowDate } from './utils/trainingCompensation';
+import {
+  findMatchingTrackedPlayer,
+  syncExistingTrackedPlayersWithRosters
+} from './utils/trainingAgreementSync';
 import { TRANSLATIONS } from './translations/translations';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
@@ -436,6 +440,28 @@ export default function App() {
     }
   }, [currentUser, language, currency, isDarkMode]);
 
+  // Keep existing Player Tracker entries automatically synced with Female & Male Rosters (never adds new players)
+  useEffect(() => {
+    if (isCloudSyncing) return;
+    if (trackedPlayers.length === 0) return;
+    if (players.length === 0 && malePlayers.length === 0) return;
+
+    const { nextTrackedPlayers, updatedTrackedPlayers } = syncExistingTrackedPlayersWithRosters(
+      trackedPlayers,
+      players,
+      malePlayers
+    );
+
+    if (updatedTrackedPlayers.length > 0) {
+      setTrackedPlayers(nextTrackedPlayers);
+      if (currentUser) {
+        updatedTrackedPlayers.forEach(tp => {
+          saveTrackedPlayerToFirestore(currentUser.uid, tp).catch(console.error);
+        });
+      }
+    }
+  }, [players, malePlayers, trackedPlayers, currentUser, isCloudSyncing]);
+
   const handleChangeNextTransferWindowDate = (newDate: string) => {
     setNextTransferWindowDate(newDate);
     if (currentUser && /^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
@@ -526,7 +552,44 @@ export default function App() {
     showToast(language === 'he' ? 'פרטי הסוכנים נשמרו בהצלחה.' : 'Agent contact details saved successfully.');
   };
 
-  // Handlers for Female Roster Players
+  // Helper to sync a single roster player update onto any existing matching Player Tracker row (never creates a new row)
+  const syncSavedRosterPlayerToExistingTracker = (savedPlayer: Player, rosterType: 'female' | 'male') => {
+    const matchedTracked = findMatchingTrackedPlayer(savedPlayer, rosterType, trackedPlayers);
+    if (!matchedTracked) return;
+
+    const agreement = savedPlayer.trainingAgreement;
+    let nextMinPct = matchedTracked.minMinutesClausePct;
+    let nextCheckpoint = matchedTracked.minutesCheckpoint;
+    if (agreement) {
+      if (agreement.minutesClauseEnabled && agreement.minutesThresholdPct && agreement.syncMinutesWithTracker !== false) {
+        nextMinPct = agreement.minutesThresholdPct;
+        nextCheckpoint = agreement.minutesCheckpoint;
+      } else if (!agreement.minutesClauseEnabled) {
+        nextMinPct = undefined;
+        nextCheckpoint = undefined;
+      }
+    }
+
+    const updatedTracked: TrackedPlayer = {
+      ...matchedTracked,
+      linkedPlayerId: savedPlayer.id,
+      linkedRosterType: rosterType,
+      clubName: savedPlayer.clubName || matchedTracked.clubName,
+      league: savedPlayer.league || matchedTracked.league,
+      age: savedPlayer.age || matchedTracked.age,
+      position: savedPlayer.position || matchedTracked.position,
+      photoUrl: savedPlayer.photoUrl || matchedTracked.photoUrl,
+      minMinutesClausePct: nextMinPct,
+      minutesCheckpoint: nextCheckpoint
+    };
+
+    setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? updatedTracked : tp)));
+    if (currentUser) {
+      saveTrackedPlayerToFirestore(currentUser.uid, updatedTracked).catch(console.error);
+    }
+  };
+
+  // Handlers for Female & Male Roster Players
   const handleSavePlayer = (savedPlayer: Player) => {
     if (playerModalRosterType === 'male') {
       setMalePlayers(prev => {
@@ -541,6 +604,7 @@ export default function App() {
       if (currentUser) {
         saveMalePlayerToFirestore(currentUser.uid, savedPlayer).catch(console.error);
       }
+      syncSavedRosterPlayerToExistingTracker(savedPlayer, 'male');
       showToast(language === 'he'
         ? `פרטי השחקן "${savedPlayer.name}" נשמרו בהצלחה.`
         : `Male player "${savedPlayer.name}" representation saved successfully.`);
@@ -559,9 +623,120 @@ export default function App() {
     if (currentUser) {
       savePlayerToFirestore(currentUser.uid, savedPlayer).catch(console.error);
     }
+    syncSavedRosterPlayerToExistingTracker(savedPlayer, 'female');
     showToast(language === 'he' 
       ? `פרטי השחקנית "${savedPlayer.name}" נשמרו בהצלחה.` 
       : `Player "${savedPlayer.name}" representation saved successfully.`);
+  };
+
+  // Manual one-click sync of Male & Female Rosters to existing Player Tracker players (never adds new players)
+  const handleSyncRostersToTracker = () => {
+    const { nextTrackedPlayers, updatedTrackedPlayers, linkedCount, unmatchedCount } =
+      syncExistingTrackedPlayersWithRosters(trackedPlayers, players, malePlayers);
+
+    if (updatedTrackedPlayers.length > 0) {
+      setTrackedPlayers(nextTrackedPlayers);
+      if (currentUser) {
+        updatedTrackedPlayers.forEach(tp => {
+          saveTrackedPlayerToFirestore(currentUser.uid, tp).catch(console.error);
+        });
+      }
+    }
+
+    showToast(
+      language === 'he'
+        ? `סונכרנו ${linkedCount} שחקנים קיימים מול סגלי בנים ובנות (${updatedTrackedPlayers.length} עודכנו, ${unmatchedCount} ללא תואם, ללא הוספת שחקנים חדשים).`
+        : `Synced ${linkedCount} existing Player Tracker players with Male & Female Rosters (${updatedTrackedPlayers.length} updated, ${unmatchedCount} unmatched, no new players added).`
+    );
+  };
+
+  // Save Training Agreement & Sync Minutes Clause ONLY to existing Player Tracker players (never adds new players)
+  const handleSaveTrainingAgreement = (
+    playerId: string,
+    rosterType: 'female' | 'male',
+    agreement: TrainingAgreementData,
+    linkedTrackedPlayerId?: string
+  ) => {
+    const sourceList = rosterType === 'male' ? malePlayers : players;
+    const existingPlayer = sourceList.find(p => p.id === playerId);
+    if (!existingPlayer) return;
+
+    const updatedPlayer: Player = {
+      ...existingPlayer,
+      trainingAgreement: agreement
+    };
+
+    if (rosterType === 'male') {
+      setMalePlayers(prev => prev.map(p => (p.id === playerId ? updatedPlayer : p)));
+      if (currentUser) {
+        saveMalePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      }
+    } else {
+      setPlayers(prev => prev.map(p => (p.id === playerId ? updatedPlayer : p)));
+      if (currentUser) {
+        savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      }
+    }
+
+    if (detailPlayer?.id === playerId) {
+      setDetailPlayer(updatedPlayer);
+    }
+
+    // Sync strictly to existing Player Tracker entry if matched or manually linked (never creates new tracked players)
+    const matchedTracked =
+      (linkedTrackedPlayerId
+        ? trackedPlayers.find(tp => tp.id === linkedTrackedPlayerId)
+        : undefined) || findMatchingTrackedPlayer(updatedPlayer, rosterType, trackedPlayers);
+
+    let syncedTrackedUpdated = false;
+
+    if (matchedTracked) {
+      if (agreement.minutesClauseEnabled && agreement.syncMinutesWithTracker !== false) {
+        const nextTracked: TrackedPlayer = {
+          ...matchedTracked,
+          linkedPlayerId: updatedPlayer.id,
+          linkedRosterType: rosterType,
+          clubName: updatedPlayer.clubName || matchedTracked.clubName,
+          minMinutesClausePct: agreement.minutesThresholdPct,
+          minutesCheckpoint: agreement.minutesCheckpoint
+        };
+        setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? nextTracked : tp)));
+        if (currentUser) {
+          saveTrackedPlayerToFirestore(currentUser.uid, nextTracked).catch(console.error);
+        }
+        syncedTrackedUpdated = true;
+      } else if (
+        matchedTracked.minMinutesClausePct ||
+        matchedTracked.minutesCheckpoint ||
+        matchedTracked.linkedPlayerId !== updatedPlayer.id
+      ) {
+        const clearedTracked: TrackedPlayer = {
+          ...matchedTracked,
+          linkedPlayerId: updatedPlayer.id,
+          linkedRosterType: rosterType,
+          minMinutesClausePct: undefined,
+          minutesCheckpoint: undefined
+        };
+        setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? clearedTracked : tp)));
+        if (currentUser) {
+          saveTrackedPlayerToFirestore(currentUser.uid, clearedTracked).catch(console.error);
+        }
+      }
+    }
+
+    if (syncedTrackedUpdated) {
+      showToast(
+        language === 'he'
+          ? `הסכם האימון נשמר וסונכרן עם השורה הקיימת במעקב הדקות עבור ${updatedPlayer.name} (${agreement.minutesThresholdPct}%).`
+          : `Training Agreement saved & synced to existing Player Tracker entry (${agreement.minutesThresholdPct}% clause).`
+      );
+    } else {
+      showToast(
+        language === 'he'
+          ? `הסכם האימון נשמר עבור ${updatedPlayer.name}.`
+          : `Training Agreement saved for ${updatedPlayer.name}.`
+      );
+    }
   };
 
   const handleUpdateYouthCategory = (playerId: string, category: YouthCategory, rosterType: 'female' | 'male' = 'female') => {
@@ -1335,6 +1510,13 @@ export default function App() {
         {activeTab === 'tracker' && (
           <PlayerTrackerView
             players={trackedPlayers}
+            femalePlayers={players}
+            malePlayers={malePlayers}
+            onOpenRosterPlayer={(p, rosterType) => {
+              setDetailPlayerRosterType(rosterType);
+              setDetailPlayer(p);
+            }}
+            onSyncWithRosters={handleSyncRostersToTracker}
             onOpenAddPlayer={(cat) => {
               if (cat) setDefaultTrackerCategory(cat);
               setTrackedPlayerToEdit(null);
@@ -1430,6 +1612,8 @@ export default function App() {
         onSave={handleSaveTrackedPlayer}
         playerToEdit={trackedPlayerToEdit}
         defaultCategory={defaultTrackerCategory}
+        femalePlayers={players}
+        malePlayers={malePlayers}
         language={language}
       />
 
@@ -1515,6 +1699,12 @@ export default function App() {
         agents={agents}
         rosterType={detailPlayerRosterType}
         nextTransferWindowDate={nextTransferWindowDate}
+        trackedPlayers={trackedPlayers}
+        onSaveTrainingAgreement={handleSaveTrainingAgreement}
+        onNavigateToTracker={() => {
+          setDetailPlayer(null);
+          setActiveTab('tracker');
+        }}
       />
 
       {/* Quick Extend Contract Modal */}

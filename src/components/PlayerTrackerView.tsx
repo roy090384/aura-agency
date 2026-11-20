@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { TrackedPlayer, TrackerCategory, PlayerGender, Language } from '../types/player';
+import { Player, TrackedPlayer, TrackerCategory, PlayerGender, Language } from '../types/player';
 import { TRANSLATIONS, TRACKER_CATEGORY_LABELS, getTrackerCategoryBadgeColor } from '../translations/translations';
 import { 
   getGameDurationMinutes, 
@@ -10,6 +10,10 @@ import {
   getTargetProgressColor,
   getPercentageColor 
 } from '../utils/trackerCalculations';
+import {
+  resolveTrackedPlayerMinutesClause,
+  evaluateMinutesClauseStatus
+} from '../utils/trainingAgreementSync';
 import { 
   Activity, 
   Plus, 
@@ -26,6 +30,7 @@ import {
   LayoutGrid, 
   List, 
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   Info,
@@ -33,11 +38,18 @@ import {
   Share2,
   Target,
   Check,
-  X
+  X,
+  Scale,
+  RefreshCw,
+  Link2
 } from 'lucide-react';
 
 interface PlayerTrackerViewProps {
   players: TrackedPlayer[];
+  femalePlayers?: Player[];
+  malePlayers?: Player[];
+  onOpenRosterPlayer?: (player: Player, rosterType: 'female' | 'male') => void;
+  onSyncWithRosters?: () => void;
   onOpenAddPlayer: (defaultCategory?: TrackerCategory) => void;
   onEditPlayer: (player: TrackedPlayer) => void;
   onOpenManualMinutes: (player: TrackedPlayer) => void;
@@ -53,6 +65,10 @@ interface PlayerTrackerViewProps {
 
 export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
   players,
+  femalePlayers = [],
+  malePlayers = [],
+  onOpenRosterPlayer,
+  onSyncWithRosters,
   onOpenAddPlayer,
   onEditPlayer,
   onOpenManualMinutes,
@@ -70,6 +86,7 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
   // Filters state
   const [selectedCategory, setSelectedCategory] = useState<TrackerCategory | 'ALL'>('ALL');
   const [selectedGender, setSelectedGender] = useState<PlayerGender | 'ALL'>('ALL');
+  const [belowClauseOnly, setBelowClauseOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [sortBy, setSortBy] = useState<'playTimePct' | 'minutes' | 'involvements' | 'targetPct' | 'name'>('playTimePct');
@@ -85,6 +102,37 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
   // Minutes dropdown open state for a player
   const [openMinutesMenuId, setOpenMinutesMenuId] = useState<string | null>(null);
 
+  // Live resolution of Training Agreement minimum minutes clauses against female & male rosters
+  const clauseMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        minPct: number | null;
+        checkpoint?: string;
+        linkedPlayer?: Player;
+        linkedRosterType?: 'female' | 'male';
+        evalResult: ReturnType<typeof evaluateMinutesClauseStatus> | null;
+      }
+    >();
+    players.forEach(tp => {
+      const resolved = resolveTrackedPlayerMinutesClause(tp, femalePlayers, malePlayers);
+      const evalResult =
+        resolved.minPct !== null ? evaluateMinutesClauseStatus(tp, resolved.minPct) : null;
+      map.set(tp.id, { ...resolved, evalResult });
+    });
+    return map;
+  }, [players, femalePlayers, malePlayers]);
+
+  const belowClauseCount = useMemo(() => {
+    let count = 0;
+    clauseMap.forEach(entry => {
+      if (entry.evalResult && !entry.evalResult.isMet) {
+        count++;
+      }
+    });
+    return count;
+  }, [clauseMap]);
+
   // Filtered and sorted players
   const filteredPlayers = useMemo(() => {
     return players.filter(p => {
@@ -92,6 +140,11 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
       if (selectedCategory !== 'ALL' && p.category !== selectedCategory) return false;
       // Gender filter
       if (selectedGender !== 'ALL' && p.gender !== selectedGender) return false;
+      // Below Minutes Clause filter
+      if (belowClauseOnly) {
+        const clause = clauseMap.get(p.id);
+        if (!clause?.evalResult || clause.evalResult.isMet) return false;
+      }
       // Search
       const q = searchQuery.toLowerCase().trim();
       if (q) {
@@ -127,7 +180,7 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
       }
       return 0;
     });
-  }, [players, selectedCategory, selectedGender, searchQuery, sortBy, sortOrder]);
+  }, [players, selectedCategory, selectedGender, belowClauseOnly, clauseMap, searchQuery, sortBy, sortOrder]);
 
   // Overall metric totals across filtered view
   const metrics = useMemo(() => {
@@ -202,6 +255,22 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>{t.deleteSelected} ({selectedIds.length})</span>
+            </button>
+          )}
+
+          {onSyncWithRosters && (
+            <button
+              type="button"
+              onClick={onSyncWithRosters}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
+              title={
+                language === 'he'
+                  ? 'סנכרן את השחקנים הקיימים בלבד עם סגל הבנים והבנות (ללא הוספת שחקנים)'
+                  : 'Sync existing tracked players with Female & Male Rosters without adding new players'
+              }
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>{language === 'he' ? 'סנכרן מסגלים' : 'Sync Rosters'}</span>
             </button>
           )}
 
@@ -389,6 +458,31 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                 👦 {t.male}
               </button>
             </div>
+
+            {/* Below Minutes Clause Filter Toggle */}
+            {(belowClauseCount > 0 || belowClauseOnly) && (
+              <button
+                type="button"
+                onClick={() => setBelowClauseOnly(prev => !prev)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                  belowClauseOnly
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                    : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 hover:bg-rose-100'
+                }`}
+                title={
+                  language === 'he'
+                    ? 'הצג שחקנים שמתחת לאחוז הדקות המינימלי בהסכם האימון'
+                    : 'Filter players currently below their Training Agreement minimum minutes %'
+                }
+              >
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {language === 'he'
+                    ? `מתחת לסעיף דקות (${belowClauseCount})`
+                    : `Below Clause (${belowClauseCount})`}
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Sort & View Mode */}
@@ -549,7 +643,7 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                           )}
 
                           <div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-slate-900 dark:text-white">
                                 {player.name}
                               </span>
@@ -558,6 +652,29 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                                   #{player.jerseyNumber}
                                 </span>
                               )}
+                              {(() => {
+                                const clause = clauseMap.get(player.id);
+                                if (!clause?.linkedPlayer || !clause.linkedRosterType) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenRosterPlayer?.(clause.linkedPlayer!, clause.linkedRosterType!)}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:opacity-80"
+                                    title={language === 'he' ? 'פתח תיק שחקן בסגל' : 'Open linked Roster Dossier'}
+                                  >
+                                    <Link2 className="w-2.5 h-2.5 shrink-0" />
+                                    <span>
+                                      {clause.linkedRosterType === 'male'
+                                        ? language === 'he'
+                                          ? 'סגל בנים'
+                                          : 'Male Roster'
+                                        : language === 'he'
+                                        ? 'סגל נשים'
+                                        : 'Female Roster'}
+                                    </span>
+                                  </button>
+                                );
+                              })()}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
                               <span>{player.position}</span>
@@ -617,21 +734,63 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                         </button>
                       </td>
 
-                      {/* Play Time Percentage with Progress Bar */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap min-w-[140px]">
-                        <div className="flex items-center justify-between text-xs font-bold mb-1">
-                          <span className={pctStyle.text}>{playPct}%</span>
-                          <span className="text-[10px] text-slate-400 font-mono-tabular font-normal">
-                            ({player.minutesPlayed}/{totalPossible})
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                          <div 
-                            className={`h-full ${pctStyle.barColor} transition-all duration-300`}
-                            style={{ width: `${playPct}%` }}
-                          ></div>
-                        </div>
-                      </td>
+                      {/* Play Time Percentage with Progress Bar & Training Agreement Clause Marker */}
+                      {(() => {
+                        const clause = clauseMap.get(player.id);
+                        const evalRes = clause?.evalResult;
+                        return (
+                          <td className="py-3 px-4 text-center whitespace-nowrap min-w-[165px]">
+                            <div className="flex items-center justify-between text-xs font-bold mb-1">
+                              <span className={pctStyle.text}>{playPct}%</span>
+                              <span className="text-[10px] text-slate-400 font-mono-tabular font-normal">
+                                ({player.minutesPlayed}/{totalPossible})
+                              </span>
+                            </div>
+                            <div className="relative w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-visible">
+                              <div 
+                                className={`h-full rounded-full ${pctStyle.barColor} transition-all duration-300`}
+                                style={{ width: `${Math.min(playPct, 100)}%` }}
+                              ></div>
+                              {clause?.minPct !== null && clause?.minPct !== undefined && (
+                                <div
+                                  className="absolute -top-0.5 -bottom-0.5 w-0.5 bg-slate-900 dark:bg-white"
+                                  style={{ left: `${Math.min(clause.minPct, 100)}%` }}
+                                  title={`Minimum Clause: ${clause.minPct}%${clause.checkpoint ? ` (${clause.checkpoint})` : ''}`}
+                                />
+                              )}
+                            </div>
+                            {evalRes && clause?.minPct && (
+                              <div className="mt-1.5 flex items-center justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (clause.linkedPlayer && clause.linkedRosterType && onOpenRosterPlayer) {
+                                      onOpenRosterPlayer(clause.linkedPlayer, clause.linkedRosterType);
+                                    }
+                                  }}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono-tabular border transition-opacity ${
+                                    clause.linkedPlayer && onOpenRosterPlayer ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+                                  } ${
+                                    evalRes.isMet
+                                      ? 'bg-green-50 text-green-800 border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800'
+                                      : evalRes.isClose
+                                      ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800'
+                                      : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800'
+                                  }`}
+                                >
+                                  <Scale className="w-2.5 h-2.5 shrink-0" />
+                                  <span>
+                                    {evalRes.isMet
+                                      ? `✓ Min ${evalRes.minPct}%`
+                                      : `⚠ <${evalRes.minPct}%`}
+                                    {clause.checkpoint ? ` · ${clause.checkpoint}` : ''}
+                                  </span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })()}
 
                       {/* Goals */}
                       <td className="py-3 px-3 text-center font-bold text-slate-900 dark:text-white font-mono-tabular">
@@ -853,13 +1012,30 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                       </div>
                     )}
 
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-base text-slate-900 dark:text-white truncate">
-                        {player.name}
-                        {player.jerseyNumber && (
-                          <span className="text-slate-400 font-normal text-xs ml-1">#{player.jerseyNumber}</span>
-                        )}
-                      </h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-bold text-base text-slate-900 dark:text-white truncate">
+                          {player.name}
+                          {player.jerseyNumber && (
+                            <span className="text-slate-400 font-normal text-xs ml-1">#{player.jerseyNumber}</span>
+                          )}
+                        </h3>
+                        {(() => {
+                          const clause = clauseMap.get(player.id);
+                          if (!clause?.linkedPlayer || !clause.linkedRosterType) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => onOpenRosterPlayer?.(clause.linkedPlayer!, clause.linkedRosterType!)}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:opacity-80 shrink-0"
+                              title={language === 'he' ? 'פתח תיק שחקן בסגל' : 'Open linked Roster Dossier'}
+                            >
+                              <Link2 className="w-2.5 h-2.5" />
+                              <span>{clause.linkedRosterType === 'male' ? 'Male' : 'Female'}</span>
+                            </button>
+                          );
+                        })()}
+                      </div>
                       <div className="text-xs text-slate-600 dark:text-slate-300 font-medium">
                         {player.clubName}
                       </div>
@@ -870,26 +1046,71 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                   </div>
 
                   {/* Play Time Percentage Highlight Box */}
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-2 mb-4">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium">Play Time %</span>
-                      <span className={`font-mono-tabular font-extrabold text-sm ${pctStyle.text}`}>
-                        {playPct}%
-                      </span>
-                    </div>
+                  {(() => {
+                    const clause = clauseMap.get(player.id);
+                    const evalRes = clause?.evalResult;
+                    return (
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-2 mb-4">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Play Time %</span>
+                          <span className={`font-mono-tabular font-extrabold text-sm ${pctStyle.text}`}>
+                            {playPct}%
+                          </span>
+                        </div>
 
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
-                      <div 
-                        className={`h-full ${pctStyle.barColor} transition-all duration-300`}
-                        style={{ width: `${playPct}%` }}
-                      ></div>
-                    </div>
+                        <div className="relative w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-visible">
+                          <div 
+                            className={`h-full rounded-full ${pctStyle.barColor} transition-all duration-300`}
+                            style={{ width: `${Math.min(playPct, 100)}%` }}
+                          ></div>
+                          {clause?.minPct !== null && clause?.minPct !== undefined && (
+                            <div
+                              className="absolute -top-0.5 -bottom-0.5 w-0.5 bg-slate-900 dark:bg-white"
+                              style={{ left: `${Math.min(clause.minPct, 100)}%` }}
+                              title={`Minimum Clause: ${clause.minPct}%${clause.checkpoint ? ` (${clause.checkpoint})` : ''}`}
+                            />
+                          )}
+                        </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono-tabular pt-1">
-                      <span>{player.minutesPlayed} mins played</span>
-                      <span>{totalPossible} mins max ({player.matchesEligible} × {duration}m)</span>
-                    </div>
-                  </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono-tabular pt-1">
+                          <span>{player.minutesPlayed} mins played</span>
+                          <span>{totalPossible} mins max ({player.matchesEligible} × {duration}m)</span>
+                        </div>
+
+                        {evalRes && clause?.minPct && (
+                          <div className="pt-1.5 border-t border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between gap-2 text-[11px]">
+                            <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                              <Scale className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span>
+                                {language === 'he' ? 'סעיף דקות:' : 'Clause:'}{' '}
+                                <strong className="font-mono-tabular text-slate-800 dark:text-slate-200">
+                                  {evalRes.minPct}%
+                                </strong>
+                                {clause.checkpoint ? ` · ${clause.checkpoint}` : ''}
+                              </span>
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded font-bold font-mono-tabular text-[10px] border ${
+                                evalRes.isMet
+                                  ? 'bg-green-50 text-green-800 border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800'
+                                  : evalRes.isClose
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800'
+                                  : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800'
+                              }`}
+                            >
+                              {evalRes.isMet
+                                ? language === 'he'
+                                  ? '✓ עומד ביעד'
+                                  : '✓ Met'
+                                : language === 'he'
+                                ? `⚠ חסר ${Math.abs(evalRes.deltaPct)}% (שחרור חינם)`
+                                : `⚠ -${Math.abs(evalRes.deltaPct)}% (Free Exit)`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* 3 Key Stats Counters: Appearances, Goals, Assists, Involvements */}
                   <div className="grid grid-cols-3 gap-2 text-center mb-4">

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Player, AgentProfile, Language, Currency } from '../types/player';
+import React, { useState, useEffect } from 'react';
+import { Player, AgentProfile, Language, Currency, TrackedPlayer, TrainingAgreementData } from '../types/player';
 import { DEFAULT_AGENTS, findAgentProfile } from '../data/defaultAgents';
+import { TrainingAgreementPanel } from './TrainingAgreementPanel';
 import { 
   getContractDaysRemaining, 
   getContractUrgency, 
@@ -56,6 +57,14 @@ interface PlayerDetailModalProps {
   agents?: AgentProfile[];
   rosterType?: 'female' | 'male';
   nextTransferWindowDate?: string;
+  trackedPlayers?: TrackedPlayer[];
+  onSaveTrainingAgreement?: (
+    playerId: string,
+    rosterType: 'female' | 'male',
+    agreement: TrainingAgreementData,
+    linkedTrackedPlayerId?: string
+  ) => void;
+  onNavigateToTracker?: () => void;
 }
 
 export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
@@ -70,10 +79,17 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
   currency = 'EUR',
   agents = DEFAULT_AGENTS,
   rosterType = 'female',
-  nextTransferWindowDate = getDefaultNextTransferWindowDate()
+  nextTransferWindowDate = getDefaultNextTransferWindowDate(),
+  trackedPlayers = [],
+  onSaveTrainingAgreement,
+  onNavigateToTracker
 }) => {
   const t = TRANSLATIONS[language];
-  const [activeTab, setActiveTab] = useState<'overview' | 'contract' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'training-agreement' | 'contract' | 'notes'>('overview');
+
+  useEffect(() => {
+    setActiveTab('overview');
+  }, [player?.id, isOpen]);
 
   if (!isOpen || !player) return null;
 
@@ -176,41 +192,60 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
         </div>
 
         {/* Tab navigation */}
-        <div className="flex items-center border-b border-slate-200 dark:border-slate-800 px-6 bg-slate-50/50 dark:bg-slate-800/50 text-xs font-medium">
+        <div className="flex items-center overflow-x-auto scrollbar-none border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 bg-slate-50/50 dark:bg-slate-800/50 text-xs font-medium">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`py-3 px-4 border-b-2 font-semibold transition-colors ${
+            className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'overview'
                 ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            Player Overview & Vitals
+            {language === 'he' ? 'סקירת שחקן/ית' : 'Player Overview & Vitals'}
+          </button>
+          <button
+            onClick={() => setActiveTab('training-agreement')}
+            className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+              activeTab === 'training-agreement'
+                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
+                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <span>{language === 'he' ? 'הסכם אימון (מועדון)' : 'Training Agreement'}</span>
+            {player.trainingAgreement?.contractMode === 'ifa_regulations' ? (
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                {language === 'he' ? 'תקנון' : 'IFA'}
+              </span>
+            ) : player.trainingAgreement?.minutesClauseEnabled && player.trainingAgreement.minutesThresholdPct ? (
+              <span className="text-[10px] font-bold font-mono-tabular px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                Min {player.trainingAgreement.minutesThresholdPct}%
+              </span>
+            ) : null}
           </button>
           <button
             onClick={() => setActiveTab('contract')}
-            className={`py-3 px-4 border-b-2 font-semibold transition-colors ${
+            className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'contract'
                 ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            Agency Contract & Terms
+            {language === 'he' ? 'חוזה ייצוג סוכנות' : 'Agency Contract & Terms'}
           </button>
           <button
             onClick={() => setActiveTab('notes')}
-            className={`py-3 px-4 border-b-2 font-semibold transition-colors ${
+            className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'notes'
                 ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            Representation Notes & Strategy
+            {language === 'he' ? 'הערות ואסטרטגיה' : 'Notes & Strategy'}
           </button>
         </div>
 
         {/* Tab Body */}
-        <div className="p-6 space-y-5 max-h-[55vh] overflow-y-auto">
+        <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
           {activeTab === 'overview' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
@@ -410,6 +445,17 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'training-agreement' && onSaveTrainingAgreement && (
+            <TrainingAgreementPanel
+              player={player}
+              rosterType={rosterType}
+              trackedPlayers={trackedPlayers}
+              onSaveTrainingAgreement={onSaveTrainingAgreement}
+              onNavigateToTracker={onNavigateToTracker}
+              language={language}
+            />
           )}
 
           {activeTab === 'contract' && (

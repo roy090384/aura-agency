@@ -11,14 +11,20 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Player, TalkProspect, TrackedPlayer, ForeignProspect, AgentProfile, Currency, Language } from '../types/player';
 
-function stripUndefined<T extends Record<string, any>>(obj: T): T {
-  const cleaned: Record<string, any> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined) {
-      cleaned[k] = v;
-    }
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(item => stripUndefined(item)) as unknown as T;
   }
-  return cleaned as T;
+  if (value !== null && typeof value === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v !== undefined) {
+        cleaned[k] = stripUndefined(v);
+      }
+    }
+    return cleaned as T;
+  }
+  return value;
 }
 
 /**
@@ -239,8 +245,8 @@ export async function saveTrackedPlayerToFirestore(userId: string, trackedPlayer
   const path = `users/${userId}/trackedPlayers/${trackedPlayer.id}`;
   try {
     const docRef = doc(db, 'users', userId, 'trackedPlayers', trackedPlayer.id);
-    const dataToSave = { ...trackedPlayer, userId };
-    await setDoc(docRef, dataToSave, { merge: true });
+    const dataToSave = stripUndefined({ ...trackedPlayer, userId });
+    await setDoc(docRef, dataToSave);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

@@ -35,6 +35,7 @@
         "goals": { "type": "number" },
         "assists": { "type": "number" },
         "goalInvolvementTarget": { "type": "number" },
+        "trainingAgreement": { "type": "object" },
         "userId": { "type": "string", "maxLength": 128 },
         "createdAt": { "type": "string", "maxLength": 64 }
       },
@@ -93,6 +94,10 @@
         "goals": { "type": "number" },
         "assists": { "type": "number" },
         "goalInvolvementTarget": { "type": "number" },
+        "linkedPlayerId": { "type": "string", "maxLength": 128 },
+        "linkedRosterType": { "type": "string", "maxLength": 16 },
+        "minMinutesClausePct": { "type": "number" },
+        "minutesCheckpoint": { "type": "string", "maxLength": 32 },
         "notes": { "type": "string", "maxLength": 4096 },
         "userId": { "type": "string", "maxLength": 128 },
         "createdAt": { "type": "string", "maxLength": 64 }

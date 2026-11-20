@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { TrackedPlayer, TrackerCategory, PlayerGender, Language } from '../types/player';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Player, TrackedPlayer, TrackerCategory, PlayerGender, Language, MinutesClausePct, LeaveCheckpoint } from '../types/player';
 import { TRANSLATIONS, TRACKER_CATEGORY_LABELS, getTrackerCategoryBadgeColor } from '../translations/translations';
 import { 
   getGameDurationMinutes, 
@@ -10,7 +10,8 @@ import {
   getTargetProgressColor,
   getPercentageColor 
 } from '../utils/trackerCalculations';
-import { X, Activity, User, Shield, Trophy, Sparkles, Clock, Check, Target } from 'lucide-react';
+import { MINUTES_CLAUSE_OPTIONS, LEAVE_CHECKPOINT_OPTIONS } from '../utils/trainingAgreementSync';
+import { X, Activity, User, Shield, Trophy, Sparkles, Clock, Check, Target, Scale, Link2 } from 'lucide-react';
 
 interface AddTrackedPlayerModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ interface AddTrackedPlayerModalProps {
   onSave: (player: TrackedPlayer) => void;
   playerToEdit?: TrackedPlayer | null;
   defaultCategory?: TrackerCategory;
+  femalePlayers?: Player[];
+  malePlayers?: Player[];
   language: Language;
 }
 
@@ -40,6 +43,8 @@ export const AddTrackedPlayerModal: React.FC<AddTrackedPlayerModalProps> = ({
   onSave,
   playerToEdit,
   defaultCategory = 'U17',
+  femalePlayers = [],
+  malePlayers = [],
   language
 }) => {
   const t = TRANSLATIONS[language];
@@ -58,6 +63,10 @@ export const AddTrackedPlayerModal: React.FC<AddTrackedPlayerModalProps> = ({
   const [goals, setGoals] = useState<number>(3);
   const [assists, setAssists] = useState<number>(4);
   const [goalInvolvementTarget, setGoalInvolvementTarget] = useState<number>(10);
+  const [linkedPlayerId, setLinkedPlayerId] = useState<string | undefined>(undefined);
+  const [linkedRosterType, setLinkedRosterType] = useState<'female' | 'male' | undefined>(undefined);
+  const [minMinutesClausePct, setMinMinutesClausePct] = useState<number | undefined>(undefined);
+  const [minutesCheckpoint, setMinutesCheckpoint] = useState<LeaveCheckpoint>('Winter 27');
   const [notes, setNotes] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
@@ -78,6 +87,10 @@ export const AddTrackedPlayerModal: React.FC<AddTrackedPlayerModalProps> = ({
       setGoals(playerToEdit.goals);
       setAssists(playerToEdit.assists);
       setGoalInvolvementTarget(playerToEdit.goalInvolvementTarget ?? 10);
+      setLinkedPlayerId(playerToEdit.linkedPlayerId);
+      setLinkedRosterType(playerToEdit.linkedRosterType);
+      setMinMinutesClausePct(playerToEdit.minMinutesClausePct);
+      setMinutesCheckpoint((playerToEdit.minutesCheckpoint as LeaveCheckpoint) || 'Winter 27');
       setNotes(playerToEdit.notes || '');
       setPhotoUrl(playerToEdit.photoUrl || '');
     } else {
@@ -96,10 +109,28 @@ export const AddTrackedPlayerModal: React.FC<AddTrackedPlayerModalProps> = ({
       setGoals(2);
       setAssists(2);
       setGoalInvolvementTarget(10);
+      setLinkedPlayerId(undefined);
+      setLinkedRosterType(undefined);
+      setMinMinutesClausePct(undefined);
+      setMinutesCheckpoint('Winter 27');
       setNotes('');
       setPhotoUrl('');
     }
   }, [playerToEdit, isOpen, defaultCategory]);
+
+  const rosterOptions = useMemo(() => {
+    const fOpts = femalePlayers.map(p => ({
+      key: `female:${p.id}`,
+      rosterType: 'female' as const,
+      player: p
+    }));
+    const mOpts = malePlayers.map(p => ({
+      key: `male:${p.id}`,
+      rosterType: 'male' as const,
+      player: p
+    }));
+    return [...fOpts, ...mOpts];
+  }, [femalePlayers, malePlayers]);
 
   if (!isOpen) return null;
 
@@ -133,6 +164,10 @@ export const AddTrackedPlayerModal: React.FC<AddTrackedPlayerModalProps> = ({
       goals: Math.max(0, Number(goals) || 0),
       assists: Math.max(0, Number(assists) || 0),
       goalInvolvementTarget: Math.max(0, Number(goalInvolvementTarget) || 0),
+      linkedPlayerId,
+      linkedRosterType,
+      minMinutesClausePct: minMinutesClausePct || undefined,
+      minutesCheckpoint: minMinutesClausePct ? minutesCheckpoint : undefined,
       notes: notes.trim() || undefined,
       createdAt: playerToEdit ? playerToEdit.createdAt : new Date().toISOString().split('T')[0],
     };
@@ -172,6 +207,73 @@ export const AddTrackedPlayerModal: React.FC<AddTrackedPlayerModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+
+          {/* Link to Male / Female Roster Player */}
+          {rosterOptions.length > 0 && (
+            <div className="p-3 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-1.5">
+              <label className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>
+                  {language === 'he'
+                    ? 'קישור לשחקן/ית מסגל בנים או בנות (סנכרון)'
+                    : 'Link to Male / Female Roster Player (Sync)'}
+                </span>
+              </label>
+              <select
+                value={linkedPlayerId && linkedRosterType ? `${linkedRosterType}:${linkedPlayerId}` : ''}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (!val) {
+                    setLinkedPlayerId(undefined);
+                    setLinkedRosterType(undefined);
+                    return;
+                  }
+                  const match = rosterOptions.find(opt => opt.key === val);
+                  if (match) {
+                    const rp = match.player;
+                    setLinkedPlayerId(rp.id);
+                    setLinkedRosterType(match.rosterType);
+                    setGender(match.rosterType === 'female' ? 'Female' : 'Male');
+                    if (!name.trim()) setName(rp.name);
+                    setClubName(rp.clubName);
+                    setLeague(rp.league || '');
+                    setAge(rp.age || age);
+                    setPosition(rp.position || position);
+                    if (rp.photoUrl) setPhotoUrl(rp.photoUrl);
+                    if (rp.trainingAgreement?.minutesClauseEnabled && rp.trainingAgreement.minutesThresholdPct) {
+                      setMinMinutesClausePct(rp.trainingAgreement.minutesThresholdPct);
+                      if (rp.trainingAgreement.minutesCheckpoint) {
+                        setMinutesCheckpoint(rp.trainingAgreement.minutesCheckpoint);
+                      }
+                    }
+                  }
+                }}
+                className="w-full px-3 py-2 text-xs rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-medium"
+              >
+                <option value="">
+                  {language === 'he' ? '— ללא קישור לסגל —' : '— Not linked to a roster dossier —'}
+                </option>
+                {femalePlayers.length > 0 && (
+                  <optgroup label={language === 'he' ? '👩 סגל נשים ונערות (Female Roster)' : '👩 Female Roster'}>
+                    {femalePlayers.map(rp => (
+                      <option key={`female:${rp.id}`} value={`female:${rp.id}`}>
+                        {rp.name} · {rp.clubName} ({rp.youthCategory || 'Senior'})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {malePlayers.length > 0 && (
+                  <optgroup label={language === 'he' ? '👦 סגל בנים ונוער (Male Roster)' : '👦 Male Roster'}>
+                    {malePlayers.map(rp => (
+                      <option key={`male:${rp.id}`} value={`male:${rp.id}`}>
+                        {rp.name} · {rp.clubName} ({rp.youthCategory || 'Senior'})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
 
           {/* Category & Gender Selectors */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -520,6 +622,82 @@ export const AddTrackedPlayerModal: React.FC<AddTrackedPlayerModalProps> = ({
                   style={{ width: `${playPct}%` }}
                 ></div>
               </div>
+            </div>
+
+            {/* Training Agreement Minimum Minutes Clause (Optional Sync) */}
+            <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="p-1 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+                    <Scale className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                      {language === 'he' ? 'סעיף דקות משחק מהסכם אימון (אופציונלי)' : 'Training Agreement Minutes Clause (Optional)'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">
+                      {language === 'he'
+                        ? 'מסמן קו סף ב-Player Tracker ומתריע מתחת ל-% הנדרש'
+                        : 'Marks threshold on Play Time % bar & alerts if below %'}
+                    </span>
+                  </div>
+                </div>
+                {playerToEdit?.linkedPlayerId && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    {language === 'he' ? 'מסונכרן לתיק שחקן' : 'Synced with Dossier'}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setMinMinutesClausePct(undefined)}
+                  className={`px-2 py-1 text-[11px] font-bold rounded border transition-colors ${
+                    !minMinutesClausePct
+                      ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {language === 'he' ? 'ללא' : 'None'}
+                </button>
+                {MINUTES_CLAUSE_OPTIONS.map((pct: MinutesClausePct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setMinMinutesClausePct(pct)}
+                    className={`px-2 py-1 text-[11px] font-bold font-mono-tabular rounded border transition-colors ${
+                      minMinutesClausePct === pct
+                        ? 'bg-emerald-700 text-white border-emerald-700'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+
+              {minMinutesClausePct && (
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {language === 'he' ? 'תחנת בדיקה:' : 'Checkpoint:'}
+                  </span>
+                  {LEAVE_CHECKPOINT_OPTIONS.map(cp => (
+                    <button
+                      key={cp}
+                      type="button"
+                      onClick={() => setMinutesCheckpoint(cp)}
+                      className={`px-2.5 py-0.5 text-[11px] font-bold rounded border transition-colors ${
+                        minutesCheckpoint === cp
+                          ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 border-slate-900 dark:border-slate-100'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      {cp}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>

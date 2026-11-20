@@ -608,6 +608,26 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                             </span>
                           </div>
                         )}
+                        {player.trainingAgreement && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {player.trainingAgreement.contractMode === 'ifa_regulations' && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                {language === 'he' ? 'תקנון התאחדות' : 'IFA Regs'}
+                              </span>
+                            )}
+                            {player.trainingAgreement.minutesClauseEnabled && player.trainingAgreement.minutesThresholdPct && (
+                              <span className="text-[10px] font-bold font-mono-tabular px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                Min {player.trainingAgreement.minutesThresholdPct}%
+                                {player.trainingAgreement.minutesCheckpoint ? ` · ${player.trainingAgreement.minutesCheckpoint}` : ''}
+                              </span>
+                            )}
+                            {player.trainingAgreement.releaseToBiggerClubsEnabled && (player.trainingAgreement.releaseClubs?.length || 0) > 0 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                {language === 'he' ? 'סעיף שחרור' : 'Release Clause'}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Assigned Agent with quick contact tooltip on hover */}
@@ -892,6 +912,28 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                         {formatDatePretty(player.contractExpiryDate)}
                       </strong>
                     </div>
+                    {player.trainingAgreement && (
+                      <div className="flex flex-wrap items-center gap-1 pt-1">
+                        {player.trainingAgreement.contractMode === 'ifa_regulations' && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            {language === 'he' ? 'ללא חוזה (תקנון התאחדות)' : 'No Contract · IFA Regs'}
+                          </span>
+                        )}
+                        {player.trainingAgreement.minutesClauseEnabled && player.trainingAgreement.minutesThresholdPct && (
+                          <span className="text-[10px] font-bold font-mono-tabular px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Min {player.trainingAgreement.minutesThresholdPct}%
+                            {player.trainingAgreement.minutesCheckpoint ? ` · ${player.trainingAgreement.minutesCheckpoint}` : ''}
+                          </span>
+                        )}
+                        {player.trainingAgreement.releaseToBiggerClubsEnabled && (player.trainingAgreement.releaseClubs?.length || 0) > 0 && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {language === 'he'
+                              ? `סעיף שחרור (${player.trainingAgreement.releaseClubs?.length})`
+                              : `Release (${player.trainingAgreement.releaseClubs?.length})`}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {/* Market Valuation Box (with Est. Training Compensation) */}
                     {(() => {
                       const compEst = estimatePlayerTrainingCompensation(player, rosterType, nextTransferWindowDate, clubs, femaleCpiPct);

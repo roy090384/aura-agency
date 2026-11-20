@@ -202,6 +202,11 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({
       assignedAgent: assignedAgent.trim(),
       videoHighlightsUrl: videoHighlightsUrl.trim(),
       notes: notes.trim(),
+      secondaryPosition: playerToEdit?.secondaryPosition,
+      goals: playerToEdit?.goals,
+      assists: playerToEdit?.assists,
+      goalInvolvementTarget: playerToEdit?.goalInvolvementTarget,
+      trainingAgreement: playerToEdit?.trainingAgreement,
       createdAt: playerToEdit ? playerToEdit.createdAt : new Date().toISOString().split('T')[0],
     };
 
