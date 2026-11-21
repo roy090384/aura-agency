@@ -303,8 +303,8 @@ export const NextMatchWindow: React.FC<NextMatchWindowProps> = ({
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {isHe
-                ? 'מעודכן מאתרי ספורט (FotMob, TheSportsDB וחיפוש משחקים ברשת) עבור שחקנים ושחקניות נבחרים'
-                : 'Choose Male & Female players to track their upcoming fixtures updated from live sports websites'}
+                ? 'מעודכן מאתרי ספורט (365Scores, FotMob, TheSportsDB) כולל ליגת העל לנוער U19 וליגת העל לנשים'
+                : 'Updated from live sports sites (365Scores, FotMob, TheSportsDB) including U19 Youth & Women\'s leagues'}
             </p>
           </div>
         </div>

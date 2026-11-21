@@ -141,36 +141,167 @@ function isYouthTeamName(name: string): boolean {
   return /\bu1[4-9]\b|\bu2[0-3]\b|\byouth\b|\bנוער\b|\bנערים\b/i.test(name);
 }
 
+function normalizeTokensForComparison(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/['"`.-]/g, ' ')
+    .replace(/\bpetach\b/g, 'petah')
+    .replace(/\bqiryat\b/g, 'kiryat')
+    .replace(/\bironi\b|\bfc\b|\bsc\b|\bms\b|\bm\.?s\.?\b/g, ' ')
+    .replace(/\(w\)|\bwomen\b|\bfem|\bnashim/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length >= 2);
+}
+
 function scoreTeamMatch(candidateName: string, targetEnglish: string, rosterType: 'female' | 'male', youthCategory?: string): number {
   const cand = candidateName.toLowerCase();
   const target = targetEnglish.toLowerCase();
   let score = 0;
 
-  // Token overlap
-  const targetTokens = target.split(/\s+/).filter(t => t.length >= 2);
+  const targetTokens = normalizeTokensForComparison(targetEnglish);
+  const candTokens = new Set(normalizeTokensForComparison(candidateName));
   let matchedTokens = 0;
   for (const tok of targetTokens) {
-    if (cand.includes(tok)) matchedTokens++;
+    if (candTokens.has(tok) || cand.includes(tok)) matchedTokens++;
   }
   if (matchedTokens === 0) return -100;
+  // Require strong overlap for multi-word club names (avoid matching wrong city club)
+  if (targetTokens.length >= 2 && matchedTokens < 2 && !cand.includes(targetTokens.join(' '))) {
+    // Allow if the unique distinctive token matches (like "ashdod", "netanya", "hadera", "sakhnin", "raanana")
+    const genericTokens = new Set(['maccabi', 'hapoel', 'beitar', 'bnei', 'tel', 'aviv', 'jerusalem', 'haifa', 'club', 'united', 'city', 'sport', 'asa']);
+    const distinctiveMatches = targetTokens.filter(t => !genericTokens.has(t) && (candTokens.has(t) || cand.includes(t)));
+    if (distinctiveMatches.length === 0) return -100;
+  }
+
   score += matchedTokens * 20;
-  if (cand === target || cand === `${target} (w)`) score += 40;
+  if (cand === target || cand === `${target} (w)` || cand === `${target} u19`) score += 40;
 
   const isW = isWomenTeamName(candidateName);
   const isY = isYouthTeamName(candidateName);
 
   if (rosterType === 'female') {
-    score += isW ? 60 : -20;
+    score += isW ? 60 : -40;
   } else {
     if (isW) score -= 80;
     if (youthCategory && youthCategory !== 'Senior') {
-      if (cand.includes(youthCategory.toLowerCase())) score += 50;
+      if (cand.includes(youthCategory.toLowerCase())) score += 70;
       else if (isY) score += 10;
+      else score -= 10;
     } else if (isY) {
-      score -= 15;
+      score -= 25;
     }
   }
   return score;
+}
+
+async function lookupVia365Scores(
+  englishClub: string,
+  rosterType: 'female' | 'male',
+  youthCategory?: string
+): Promise<Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType' | 'lookupLinks' | 'fetchedAt'> | null> {
+  if (!englishClub) return null;
+
+  const searchTerms: string[] = [];
+  if (rosterType === 'female') {
+    searchTerms.push(`${englishClub} (W)`, `${englishClub} Women`, englishClub);
+  } else if (youthCategory && youthCategory !== 'Senior') {
+    searchTerms.push(`${englishClub} ${youthCategory}`, englishClub);
+  } else {
+    searchTerms.push(englishClub);
+  }
+
+  const seenIds = new Set<number>();
+  const candidates: Array<{ id: number; name: string; nameForURL?: string; score: number }> = [];
+
+  for (const term of searchTerms) {
+    const url = `https://webws.365scores.com/web/search/?query=${encodeURIComponent(term)}&langId=1`;
+    const data = await fetchJsonWithTimeout(url);
+    const competitors = Array.isArray(data?.competitors) ? data.competitors : [];
+    for (const c of competitors) {
+      if (Number(c?.sportId) !== 1 || typeof c?.id !== 'number' || typeof c?.name !== 'string') continue;
+      if (seenIds.has(c.id)) continue;
+      seenIds.add(c.id);
+      const sc = scoreTeamMatch(c.name, englishClub, rosterType, youthCategory);
+      if (sc > 0) {
+        candidates.push({ id: c.id, name: c.name, nameForURL: c.nameForURL, score: sc });
+      }
+    }
+    if (candidates.some(c => c.score >= 80)) break;
+  }
+
+  // Also scan Israeli U19 Youth League (525) or Israeli Women's Premier League (7620) fixtures directly for aliases
+  const directLeagueIds: number[] = [];
+  if (rosterType === 'male' && youthCategory === 'U19') directLeagueIds.push(525);
+  if (rosterType === 'female') directLeagueIds.push(7620);
+
+  for (const compId of directLeagueIds) {
+    if (candidates.some(c => c.score >= 80)) break;
+    const compFixtures = await fetchJsonWithTimeout(`https://webws.365scores.com/web/games/fixtures/?competitions=${compId}&langId=1`);
+    const games = Array.isArray(compFixtures?.games) ? compFixtures.games : [];
+    for (const g of games) {
+      for (const comp of [g?.homeCompetitor, g?.awayCompetitor]) {
+        if (!comp || typeof comp.id !== 'number' || typeof comp.name !== 'string') continue;
+        if (seenIds.has(comp.id)) continue;
+        seenIds.add(comp.id);
+        const sc = scoreTeamMatch(comp.name, englishClub, rosterType, youthCategory);
+        if (sc > 0) {
+          candidates.push({ id: comp.id, name: comp.name, nameForURL: comp.nameForURL, score: sc });
+        }
+      }
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+
+  for (const team of candidates.slice(0, 4)) {
+    if (rosterType === 'female' && !isWomenTeamName(team.name)) continue;
+    // For U19 players, require an actual U19/Youth team on 365Scores (otherwise let fallback decide)
+    if (rosterType === 'male' && youthCategory === 'U19' && !isYouthTeamName(team.name)) continue;
+
+    const fixturesData = await fetchJsonWithTimeout(
+      `https://webws.365scores.com/web/games/fixtures/?competitors=${team.id}&langId=1`
+    );
+    const games = Array.isArray(fixturesData?.games) ? fixturesData.games : [];
+    const nowCutoff = Date.now() - 2 * 60 * 60 * 1000;
+
+    const upcomingGames = games
+      .filter((g: any) => {
+        if (!g?.startTime || Number(g?.statusGroup) === 4) return false; // statusGroup 4 = Ended
+        const ts = Date.parse(g.startTime);
+        return !Number.isNaN(ts) && ts >= nowCutoff;
+      })
+      .sort((a: any, b: any) => Date.parse(a.startTime) - Date.parse(b.startTime));
+
+    const nextGame = upcomingGames[0];
+    if (!nextGame) continue;
+
+    const homeTeam = sanitizeText(nextGame?.homeCompetitor?.name, 100);
+    const awayTeam = sanitizeText(nextGame?.awayCompetitor?.name, 100);
+    const isHome = Number(nextGame?.homeCompetitor?.id) === team.id;
+    const opponent = isHome ? awayTeam : homeTeam;
+    const competition = sanitizeText(nextGame?.competitionDisplayName, 100);
+    const venue = sanitizeText(nextGame?.venue?.name, 100) || undefined;
+
+    const teamSlug = team.nameForURL || team.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const sourceUrl = `https://www.365scores.com/football/team/${teamSlug}-${team.id}`;
+
+    return {
+      status: 'found',
+      homeTeam,
+      awayTeam,
+      opponent,
+      isHome,
+      kickoffIso: new Date(nextGame.startTime).toISOString(),
+      competition,
+      venue,
+      matchedTeamName: team.name,
+      sourceName: '365Scores',
+      sourceUrl,
+      sources: [{ title: `365Scores · ${team.name}`, url: sourceUrl }],
+    };
+  }
+
+  return null;
 }
 
 async function lookupViaFotMob(
@@ -466,15 +597,26 @@ export async function lookupNextMatch(item: NextMatchRequestItem, forceRefresh =
     }
   }
 
-  // Tier 1: FotMob sports website live fixtures
-  let found = await lookupViaFotMob(englishClub, item.rosterType, youthCategory);
+  let found: Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType' | 'lookupLinks' | 'fetchedAt'> | null = null;
 
-  // Tier 2: TheSportsDB sports website live fixtures
+  // For U19 and Women's leagues (including Israeli Youth Premier League & Women's Premier League),
+  // prioritize 365Scores first, then FotMob -> TheSportsDB -> Gemini Search Grounding.
+  if (item.rosterType === 'female' || youthCategory === 'U19') {
+    found = await lookupVia365Scores(englishClub, item.rosterType, youthCategory);
+    if (!found) {
+      found = await lookupViaFotMob(englishClub, item.rosterType, youthCategory);
+    }
+  } else {
+    found = await lookupViaFotMob(englishClub, item.rosterType, youthCategory);
+    if (!found) {
+      found = await lookupVia365Scores(englishClub, item.rosterType, youthCategory);
+    }
+  }
+
   if (!found) {
     found = await lookupViaTheSportsDB(englishClub, item.rosterType, youthCategory);
   }
 
-  // Tier 3: Gemini Google Search Grounding (searches football.org.il, ONE, Sport5, Flashscore, FotMob, SofaScore)
   if (!found) {
     found = await lookupViaGeminiSearchGrounding(item, englishClub);
   }
