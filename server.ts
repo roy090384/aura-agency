@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { lookupNextMatch } from './lib/nextMatchLookup.ts';
+import { lookupNextMatch, isGeminiQuotaLimited } from './lib/nextMatchLookup.ts';
 import type { NextMatchRequestItem } from './lib/nextMatchLookup.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,6 +47,7 @@ async function startServer() {
       res.status(200).json({
         results,
         geminiSearchEnabled: Boolean(process.env.GEMINI_API_KEY),
+        geminiQuotaLimited: isGeminiQuotaLimited(),
         fetchedAt: new Date().toISOString(),
       });
     } catch (err: any) {

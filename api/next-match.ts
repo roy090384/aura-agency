@@ -1,4 +1,4 @@
-import { lookupNextMatch } from '../lib/nextMatchLookup.ts';
+import { lookupNextMatch, isGeminiQuotaLimited } from '../lib/nextMatchLookup.ts';
 import type { NextMatchRequestItem } from '../lib/nextMatchLookup.ts';
 
 export default async function handler(req: any, res: any) {
@@ -36,6 +36,7 @@ export default async function handler(req: any, res: any) {
     res.status(200).json({
       results,
       geminiSearchEnabled: Boolean(process.env.GEMINI_API_KEY),
+      geminiQuotaLimited: isGeminiQuotaLimited(),
       fetchedAt: new Date().toISOString(),
     });
   } catch (err) {

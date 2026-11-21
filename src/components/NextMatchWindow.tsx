@@ -200,6 +200,14 @@ export const NextMatchWindow: React.FC<NextMatchWindowProps> = ({
         const data = await res.json();
         const results: NextMatchInfo[] = Array.isArray(data?.results) ? data.results : [];
 
+        if (data?.geminiQuotaLimited && results.some(r => r.status === 'not_found')) {
+          setFetchError(
+            isHe
+              ? 'מכסת החיפוש החכם (Gemini) הגיעה לתקרה הזמנית. מוצגים משחקים חיים מ-365Scores, FotMob ו-TheSportsDB וקישורים ישירים לאתרי הספורט.'
+              : 'Live AI web search fallback reached its temporary quota limit; showing live 365Scores, FotMob & TheSportsDB schedules and direct sports links.'
+          );
+        }
+
         setMatchMap(prev => {
           const next = { ...prev };
           for (const r of results) {

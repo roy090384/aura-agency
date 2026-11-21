@@ -81,7 +81,24 @@ const HEBREW_TO_ENGLISH_CLUBS: Array<[RegExp, string]> = [
 ];
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
+const GEMINI_COOLDOWN_MS = 10 * 60 * 1000;
 const matchCache = new Map<string, { expiresAt: number; result: Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType'> }>();
+const inFlightLookups = new Map<string, Promise<Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType'>>>();
+
+let geminiCooldownUntil = 0;
+let geminiQueue: Promise<void> = Promise.resolve();
+
+export function isGeminiQuotaLimited(): boolean {
+  return Date.now() < geminiCooldownUntil;
+}
+
+function isQuotaOrRateLimitError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const anyErr = err as Record<string, any>;
+  if (anyErr.status === 429 || anyErr.code === 429) return true;
+  const msg = String(anyErr.message || err);
+  return msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota');
+}
 
 function sanitizeText(val: unknown, maxLen = 120): string {
   if (typeof val !== 'string') return '';
@@ -485,84 +502,109 @@ async function lookupViaGeminiSearchGrounding(
 ): Promise<Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType' | 'lookupLinks' | 'fetchedAt'> | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
+  if (Date.now() < geminiCooldownUntil) return null;
 
-  try {
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
-
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const genderLabel = item.rosterType === 'female' ? "Women's football" : "Men's / Youth football";
-    const ageLabel = item.youthCategory && item.youthCategory !== 'Senior' ? `(${item.youthCategory} youth squad)` : '(Senior first team)';
-
-    const prompt = [
-      `Find the NEXT confirmed upcoming official football match AFTER ${todayIso} for club "${item.clubName}"${englishClub && englishClub !== item.clubName ? ` (English: "${englishClub}")` : ''}.`,
-      `Division: ${genderLabel} ${ageLabel}.`,
-      item.league ? `League context: ${item.league}.` : '',
-      `Search official sports websites (such as football.org.il / ההתאחדות לכדורגל, FotMob, Flashscore, SofaScore, ONE, Sport5, UEFA, Soccerway).`,
-      `CRITICAL RULES:`,
-      `- Only return a match if you find a real confirmed upcoming fixture published on a sports website.`,
-      `- Do NOT invent, guess, or estimate dates or opponents. If no confirmed upcoming fixture is published online, respond strictly with JSON: {"found": false}.`,
-      `- Respond ONLY with valid JSON matching this schema:`,
-      `{"found": true, "homeTeam": "...", "awayTeam": "...", "opponent": "...", "isHome": true, "kickoffIso": "YYYY-MM-DDTHH:mm:ssZ", "competition": "...", "venue": "...", "matchedTeamName": "..."}`,
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-4-hydrogen',
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
-    });
-
-    const rawText = (response.text || '').trim();
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (!parsed?.found || !parsed?.opponent || !parsed?.kickoffIso) return null;
-
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources: MatchSourceLink[] = [];
-    for (const c of chunks) {
-      const uri = c?.web?.uri;
-      const title = c?.web?.title;
-      if (typeof uri === 'string' && uri.startsWith('https://')) {
-        sources.push({
-          title: sanitizeText(title || new URL(uri).hostname, 80),
-          url: uri,
-        });
-      }
-    }
-
-    const parsedTs = Date.parse(String(parsed.kickoffIso));
-    if (Number.isNaN(parsedTs)) return null;
-
-    return {
-      status: 'found',
-      homeTeam: sanitizeText(parsed.homeTeam, 100) || undefined,
-      awayTeam: sanitizeText(parsed.awayTeam, 100) || undefined,
-      opponent: sanitizeText(parsed.opponent, 100),
-      isHome: typeof parsed.isHome === 'boolean' ? parsed.isHome : undefined,
-      kickoffIso: new Date(parsedTs).toISOString(),
-      competition: sanitizeText(parsed.competition, 100) || sanitizeText(item.league, 100) || undefined,
-      venue: sanitizeText(parsed.venue, 100) || undefined,
-      matchedTeamName: sanitizeText(parsed.matchedTeamName, 100) || item.clubName,
-      sourceName: sources[0]?.title || 'Live Web Sports Search',
-      sourceUrl: sources[0]?.url,
-      sources: sources.slice(0, 3),
-    };
-  } catch (err) {
-    console.warn('Gemini search grounding lookup error:', err);
+  // Skip AI web search for grassroots U14/U15/U16 youth tiers where online sites lack official feeds
+  if (item.youthCategory && ['U14', 'U15', 'U16'].includes(item.youthCategory)) {
     return null;
   }
+
+  // Serialize Gemini grounding calls so a multi-player batch never bursts past RPM limits
+  const runSerialized = async (): Promise<Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType' | 'lookupLinks' | 'fetchedAt'> | null> => {
+    if (Date.now() < geminiCooldownUntil) return null;
+
+    try {
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const genderLabel = item.rosterType === 'female' ? "Women's football" : "Men's / Youth football";
+      const ageLabel = item.youthCategory && item.youthCategory !== 'Senior' ? `(${item.youthCategory} youth squad)` : '(Senior first team)';
+
+      const prompt = [
+        `Find the NEXT confirmed upcoming official football match AFTER ${todayIso} for club "${item.clubName}"${englishClub && englishClub !== item.clubName ? ` (English: "${englishClub}")` : ''}.`,
+        `Division: ${genderLabel} ${ageLabel}.`,
+        item.league ? `League context: ${item.league}.` : '',
+        `Search official sports websites (such as football.org.il / ההתאחדות לכדורגל, FotMob, Flashscore, SofaScore, ONE, Sport5, UEFA, Soccerway).`,
+        `CRITICAL RULES:`,
+        `- Only return a match if you find a real confirmed upcoming fixture published on a sports website.`,
+        `- Do NOT invent, guess, or estimate dates or opponents. If no confirmed upcoming fixture is published online, respond strictly with JSON: {"found": false}.`,
+        `- Respond ONLY with valid JSON matching this schema:`,
+        `{"found": true, "homeTeam": "...", "awayTeam": "...", "opponent": "...", "isHome": true, "kickoffIso": "YYYY-MM-DDTHH:mm:ssZ", "competition": "...", "venue": "...", "matchedTeamName": "..."}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+        },
+      });
+
+      const rawText = (response.text || '').trim();
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!parsed?.found || !parsed?.opponent || !parsed?.kickoffIso) return null;
+
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const sources: MatchSourceLink[] = [];
+      for (const c of chunks) {
+        const uri = c?.web?.uri;
+        const title = c?.web?.title;
+        if (typeof uri === 'string' && uri.startsWith('https://')) {
+          sources.push({
+            title: sanitizeText(title || new URL(uri).hostname, 80),
+            url: uri,
+          });
+        }
+      }
+
+      const parsedTs = Date.parse(String(parsed.kickoffIso));
+      if (Number.isNaN(parsedTs)) return null;
+
+      return {
+        status: 'found',
+        homeTeam: sanitizeText(parsed.homeTeam, 100) || undefined,
+        awayTeam: sanitizeText(parsed.awayTeam, 100) || undefined,
+        opponent: sanitizeText(parsed.opponent, 100),
+        isHome: typeof parsed.isHome === 'boolean' ? parsed.isHome : undefined,
+        kickoffIso: new Date(parsedTs).toISOString(),
+        competition: sanitizeText(parsed.competition, 100) || sanitizeText(item.league, 100) || undefined,
+        venue: sanitizeText(parsed.venue, 100) || undefined,
+        matchedTeamName: sanitizeText(parsed.matchedTeamName, 100) || item.clubName,
+        sourceName: sources[0]?.title || 'Live Web Sports Search',
+        sourceUrl: sources[0]?.url,
+        sources: sources.slice(0, 3),
+      };
+    } catch (err) {
+      if (isQuotaOrRateLimitError(err)) {
+        geminiCooldownUntil = Date.now() + GEMINI_COOLDOWN_MS;
+        console.info('Gemini search grounding rate/quota limit reached; pausing AI fallback for 10 minutes.');
+      } else {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        console.info(`Gemini search grounding fallback skipped (${msg.slice(0, 120)}).`);
+      }
+      return null;
+    }
+  };
+
+  let result: Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType' | 'lookupLinks' | 'fetchedAt'> | null = null;
+  const task = geminiQueue.then(async () => {
+    result = await runSerialized();
+  });
+  geminiQueue = task.catch(() => undefined);
+  await task;
+  return result;
 }
 
 export async function lookupNextMatch(item: NextMatchRequestItem, forceRefresh = false): Promise<NextMatchResult> {
@@ -597,51 +639,72 @@ export async function lookupNextMatch(item: NextMatchRequestItem, forceRefresh =
     }
   }
 
-  let found: Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType' | 'lookupLinks' | 'fetchedAt'> | null = null;
+  const pending = inFlightLookups.get(cacheKey);
+  if (!forceRefresh && pending) {
+    const resolved = await pending;
+    return {
+      ...resolved,
+      key: item.key,
+      playerId: item.playerId,
+      rosterType: item.rosterType,
+    };
+  }
 
-  // For U19 and Women's leagues (including Israeli Youth Premier League & Women's Premier League),
-  // prioritize 365Scores first, then FotMob -> TheSportsDB -> Gemini Search Grounding.
-  if (item.rosterType === 'female' || youthCategory === 'U19') {
-    found = await lookupVia365Scores(englishClub, item.rosterType, youthCategory);
-    if (!found) {
-      found = await lookupViaFotMob(englishClub, item.rosterType, youthCategory);
-    }
-  } else {
-    found = await lookupViaFotMob(englishClub, item.rosterType, youthCategory);
-    if (!found) {
+  const lookupPromise = (async (): Promise<Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType'>> => {
+    let found: Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType' | 'lookupLinks' | 'fetchedAt'> | null = null;
+
+    // For U19 and Women's leagues (including Israeli Youth Premier League & Women's Premier League),
+    // prioritize 365Scores first, then FotMob -> TheSportsDB -> Gemini Search Grounding.
+    if (item.rosterType === 'female' || youthCategory === 'U19') {
       found = await lookupVia365Scores(englishClub, item.rosterType, youthCategory);
-    }
-  }
-
-  if (!found) {
-    found = await lookupViaTheSportsDB(englishClub, item.rosterType, youthCategory);
-  }
-
-  if (!found) {
-    found = await lookupViaGeminiSearchGrounding(item, englishClub);
-  }
-
-  const baseResult: Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType'> = found
-    ? {
-        ...found,
-        lookupLinks,
-        fetchedAt,
+      if (!found) {
+        found = await lookupViaFotMob(englishClub, item.rosterType, youthCategory);
       }
-    : {
-        status: 'not_found',
-        lookupLinks,
-        fetchedAt,
-      };
+    } else {
+      found = await lookupViaFotMob(englishClub, item.rosterType, youthCategory);
+      if (!found) {
+        found = await lookupVia365Scores(englishClub, item.rosterType, youthCategory);
+      }
+    }
 
-  matchCache.set(cacheKey, {
-    expiresAt: Date.now() + CACHE_TTL_MS,
-    result: baseResult,
-  });
+    if (!found) {
+      found = await lookupViaTheSportsDB(englishClub, item.rosterType, youthCategory);
+    }
 
-  return {
-    ...baseResult,
-    key: item.key,
-    playerId: item.playerId,
-    rosterType: item.rosterType,
-  };
+    if (!found) {
+      found = await lookupViaGeminiSearchGrounding(item, englishClub);
+    }
+
+    const baseResult: Omit<NextMatchResult, 'key' | 'playerId' | 'rosterType'> = found
+      ? {
+          ...found,
+          lookupLinks,
+          fetchedAt,
+        }
+      : {
+          status: 'not_found',
+          lookupLinks,
+          fetchedAt,
+        };
+
+    matchCache.set(cacheKey, {
+      expiresAt: Date.now() + CACHE_TTL_MS,
+      result: baseResult,
+    });
+
+    return baseResult;
+  })();
+
+  inFlightLookups.set(cacheKey, lookupPromise);
+  try {
+    const baseResult = await lookupPromise;
+    return {
+      ...baseResult,
+      key: item.key,
+      playerId: item.playerId,
+      rosterType: item.rosterType,
+    };
+  } finally {
+    inFlightLookups.delete(cacheKey);
+  }
 }
