@@ -94,28 +94,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.dashboard,
       icon: LayoutDashboard,
       count: undefined,
-      color: 'emerald'
+      iconColor: 'text-gold-600 dark:text-gold-400'
     },
     {
       id: 'roster' as NavigationTab,
       label: t.agencyRoster,
       icon: Users,
       count: playerCount,
-      color: 'emerald'
+      iconColor: 'text-rose-500 dark:text-rose-400'
     },
     {
       id: 'male-roster' as NavigationTab,
       label: t.maleRoster,
       icon: Users,
       count: malePlayerCount,
-      color: 'emerald'
+      iconColor: 'text-blue-600 dark:text-blue-400'
     },
     {
       id: 'in-talk' as NavigationTab,
       label: t.inTalkWith,
       icon: MessageSquare,
       count: prospectCount,
-      color: 'emerald'
+      iconColor: 'text-violet-600 dark:text-violet-400'
     },
     {
       id: 'alerts' as NavigationTab,
@@ -123,28 +123,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: BellRing,
       count: totalAlertsHubCount > 0 ? totalAlertsHubCount : undefined,
       isAlert: criticalAlertsCount > 0,
-      color: 'amber'
+      iconColor: 'text-rose-500 dark:text-rose-400'
     },
     {
       id: 'tracker' as NavigationTab,
       label: t.playerTracker,
       icon: Activity,
       count: trackedCount,
-      color: 'emerald'
+      iconColor: 'text-emerald-600 dark:text-emerald-400'
     },
     {
       id: 'compensation' as NavigationTab,
       label: t.trainingCompensation,
       icon: Calculator,
       count: undefined,
-      color: 'emerald'
+      iconColor: 'text-gold-600 dark:text-gold-400'
     },
     {
       id: 'agent-settings' as NavigationTab,
       label: t.agentSettings,
       icon: UserCog,
       count: undefined,
-      color: 'emerald'
+      iconColor: 'text-slate-500 dark:text-slate-400'
     }
   ];
 
@@ -177,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => handleNavClick('dashboard')}
               className="flex flex-col items-start text-left rtl:text-right group min-w-0 flex-1"
             >
-              <div className="rounded-xl transition-all dark:bg-[#FAF8F3] dark:px-3 dark:py-2 dark:border dark:border-emerald-300/40 dark:shadow-xs">
+              <div className="rounded-xl transition-all dark:bg-[#FAF8F3] dark:px-3 dark:py-2 dark:border dark:border-gold-400/50 dark:shadow-xs">
                 <img
                   src="/assets/aistudio/Brit_gold_c815fbe0.png"
                   alt={t.brandName}
@@ -218,27 +218,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => handleNavClick(item.id)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
                     isActive
-                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 shadow-xs border border-emerald-200/80 dark:border-emerald-800/80'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-gradient-to-r from-gold-500/20 via-gold-400/10 to-transparent dark:from-gold-500/25 dark:via-gold-500/10 dark:to-transparent text-gold-900 dark:text-gold-200 border border-gold-400/60 dark:border-gold-400/40 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <Icon className={`w-4 h-4 shrink-0 ${
-                      isActive 
-                        ? 'text-emerald-600 dark:text-emerald-400' 
-                        : item.isAlert 
-                        ? 'text-amber-600 dark:text-amber-400' 
-                        : 'text-slate-400'
+                      isActive ? 'text-gold-600 dark:text-gold-300' : item.iconColor
                     }`} />
                     <span className="truncate">{item.label}</span>
                   </div>
 
                   {item.count !== undefined && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-mono-tabular shrink-0 ${
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-mono-tabular shrink-0 ${
                       item.isAlert
-                        ? 'bg-amber-500 text-white font-extrabold animate-pulse'
+                        ? 'bg-rose-500 text-white font-extrabold'
                         : isActive
-                        ? 'bg-emerald-200/80 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 font-bold'
+                        ? 'bg-gold-500/20 text-gold-900 dark:text-gold-200 font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                     }`}>
                       {item.count}
@@ -250,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Quick Actions Launcher */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
             <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               {language === 'he' ? 'פעולות הוספה' : 'Quick Actions'}
             </span>
@@ -260,9 +256,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenAddPlayer();
                 onCloseMobile();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
             >
-              <Plus className="w-3.5 h-3.5 text-emerald-600" />
+              <Plus className="w-3.5 h-3.5 text-rose-500" />
               <span>{t.addPlayer}</span>
             </button>
 
@@ -271,9 +267,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenAddMalePlayer();
                 onCloseMobile();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
             >
-              <Plus className="w-3.5 h-3.5 text-teal-600" />
+              <Plus className="w-3.5 h-3.5 text-blue-500" />
               <span>{t.addMalePlayer}</span>
             </button>
 
@@ -282,9 +278,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenAddProspect();
                 onCloseMobile();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
             >
-              <Plus className="w-3.5 h-3.5 text-sky-600" />
+              <Plus className="w-3.5 h-3.5 text-violet-500" />
               <span>{t.addTalkProspect}</span>
             </button>
 
@@ -293,9 +289,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenAddTrackedPlayer();
                 onCloseMobile();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
             >
-              <Plus className="w-3.5 h-3.5 text-purple-600" />
+              <Plus className="w-3.5 h-3.5 text-emerald-500" />
               <span>{t.trackPlayerBtn}</span>
             </button>
           </div>
@@ -354,7 +350,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {onLogin && (
                   <button
                     onClick={onLogin}
-                    className="w-full py-1.5 px-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors flex items-center justify-center gap-1.5"
+                    className="w-full py-1.5 px-2 text-xs font-bold rounded-lg bg-gold-600 hover:bg-gold-700 text-white shadow-2xs transition-colors flex items-center justify-center gap-1.5"
                   >
                     <LogIn className="w-3.5 h-3.5" />
                     <span>{t.signInGoogle}</span>
@@ -373,7 +369,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold mb-1">
               <span className="flex items-center gap-1">
-                <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                <Coins className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
                 <span>{t.currency}</span>
               </span>
               <span className="font-mono-tabular font-bold text-slate-700 dark:text-slate-300">
@@ -406,7 +402,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onChangeCurrency('ILS')}
                 className={`py-1.5 rounded-md transition-all ${
                   currency === 'ILS'
-                    ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-2xs font-bold'
+                    ? 'bg-white dark:bg-slate-700 text-gold-700 dark:text-gold-300 shadow-2xs font-bold'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >

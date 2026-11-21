@@ -121,10 +121,10 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                 src={player.photoUrl} 
                 alt={player.name}
                 referrerPolicy="no-referrer"
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-lg shrink-0" 
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-gold-400/60 shadow-lg shrink-0" 
               />
             ) : (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-emerald-800 text-white font-extrabold flex items-center justify-center text-2xl border-2 border-emerald-500/40 shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gold-700 text-white font-extrabold flex items-center justify-center text-2xl border-2 border-gold-400/60 shrink-0">
                 {player.name.slice(0, 2).toUpperCase()}
               </div>
             )}
@@ -197,7 +197,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
             onClick={() => setActiveTab('overview')}
             className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'overview'
-                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
+                ? 'border-gold-500 text-gold-700 dark:text-gold-300'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
@@ -207,7 +207,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
             onClick={() => setActiveTab('training-agreement')}
             className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
               activeTab === 'training-agreement'
-                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
+                ? 'border-gold-500 text-gold-700 dark:text-gold-300'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
@@ -226,7 +226,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
             onClick={() => setActiveTab('contract')}
             className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'contract'
-                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
+                ? 'border-gold-500 text-gold-700 dark:text-gold-300'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
@@ -236,7 +236,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
             onClick={() => setActiveTab('notes')}
             className={`py-3 px-3.5 sm:px-4 border-b-2 font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'notes'
-                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400'
+                ? 'border-gold-500 text-gold-700 dark:text-gold-300'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >

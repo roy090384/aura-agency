@@ -254,7 +254,11 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
 
           <button
             onClick={onOpenAddPlayer}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white shadow-xs transition-colors"
+            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg text-white shadow-xs transition-colors ${
+              isMale
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-rose-600 hover:bg-rose-700'
+            }`}
           >
             <UserPlus className="w-4 h-4" />
             <span>{isMale ? t.addMalePlayer : t.addPlayer}</span>
@@ -263,9 +267,9 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
       </div>
 
       {/* Global Transfer Window Target Date Configuration Bar */}
-      <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/25 border border-emerald-200/80 dark:border-emerald-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="p-3.5 sm:p-4 rounded-xl bg-gold-50/70 dark:bg-gold-950/25 border border-gold-300/80 dark:border-gold-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-start sm:items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/70 text-emerald-700 dark:text-emerald-300 shrink-0">
+          <div className="p-2 rounded-lg bg-gold-100 dark:bg-gold-900/60 text-gold-700 dark:text-gold-300 shrink-0">
             <Calculator className="w-4 h-4" />
           </div>
           <div>
@@ -288,7 +292,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
             type="date"
             value={nextTransferWindowDate}
             onChange={e => onChangeNextTransferWindowDate?.(e.target.value)}
-            className="px-3 py-1.5 text-xs sm:text-sm font-mono-tabular font-bold rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+            className="px-3 py-1.5 text-xs sm:text-sm font-mono-tabular font-bold rounded-lg border border-gold-300 dark:border-gold-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-gold-500"
           />
         </div>
       </div>

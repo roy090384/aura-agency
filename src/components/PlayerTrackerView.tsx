@@ -302,67 +302,79 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
       {/* 4 Summary Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Tracked Players */}
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-            {t.trackerSummaryTotalPlayers}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-mono-tabular">
-              {metrics.totalPlayers}
+        <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="h-1 w-full bg-gradient-to-r from-gold-400 to-gold-600" />
+          <div className="p-4">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+              {t.trackerSummaryTotalPlayers}
             </span>
-            <span className="text-xs text-slate-400">active</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-mono-tabular">
+                {metrics.totalPlayers}
+              </span>
+              <span className="text-xs text-gold-600 dark:text-gold-400 font-semibold">active</span>
+            </div>
           </div>
         </div>
 
         {/* Metric 2: Total Pitch Minutes */}
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-            {t.trackerSummaryTotalMinutes}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono-tabular">
-              {metrics.totalMinutes.toLocaleString()}
+        <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="h-1 w-full bg-gradient-to-r from-emerald-400 to-teal-500" />
+          <div className="p-4">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+              {t.trackerSummaryTotalMinutes}
             </span>
-            <span className="text-xs text-slate-400">mins</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono-tabular">
+                {metrics.totalMinutes.toLocaleString()}
+              </span>
+              <span className="text-xs text-slate-400">mins</span>
+            </div>
           </div>
         </div>
 
         {/* Metric 3: Goals & Assists and Targets */}
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              {t.trackerSummaryTotalInvolvements}
-            </span>
-            {metrics.targetsMetCount > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                {metrics.targetsMetCount} 🎯 Met
+        <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="h-1 w-full bg-gradient-to-r from-indigo-500 to-violet-500" />
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                {t.trackerSummaryTotalInvolvements}
               </span>
-            )}
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-amber-600 dark:text-amber-400 font-mono-tabular">
-              {metrics.totalInvolvements}
-            </span>
-            <span className="text-xs text-slate-500 font-mono-tabular">
-              ({metrics.totalGoals}G + {metrics.totalAssists}A)
-            </span>
+              {metrics.targetsMetCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                  {metrics.targetsMetCount} Met
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono-tabular">
+                {metrics.totalInvolvements}
+              </span>
+              <span className="text-xs text-slate-500 font-mono-tabular">
+                ({metrics.totalGoals}G + {metrics.totalAssists}A)
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Metric 4: Average Play Time % */}
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-            {t.trackerSummaryAvgPlayPct}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-mono-tabular">
-              {metrics.avgPct}%
+        <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="h-1 w-full bg-gradient-to-r from-cyan-400 to-blue-500" />
+          <div className="p-4">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+              {t.trackerSummaryAvgPlayPct}
             </span>
-            <div className="flex-1 bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden ml-2">
-              <div 
-                className="bg-emerald-500 h-full rounded-full transition-all" 
-                style={{ width: `${metrics.avgPct}%` }}
-              ></div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold text-cyan-600 dark:text-cyan-400 font-mono-tabular">
+                {metrics.avgPct}%
+              </span>
+              <div className="flex-1 bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden ml-2">
+                <div 
+                  className="bg-gradient-to-r from-emerald-500 to-cyan-500 h-full rounded-full transition-all" 
+                  style={{ width: `${metrics.avgPct}%` }}
+                ></div>
+              </div>
             </div>
           </div>
         </div>

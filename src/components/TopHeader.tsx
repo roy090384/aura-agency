@@ -118,8 +118,27 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   const Icon = getSectionIcon();
 
+  const getSectionIconColor = () => {
+    switch (activeTab) {
+      case 'dashboard':
+      case 'compensation':
+        return 'bg-gold-50 dark:bg-gold-950/60 text-gold-700 dark:text-gold-300 border-gold-200 dark:border-gold-700/60';
+      case 'roster':
+      case 'alerts':
+        return 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800/60';
+      case 'male-roster':
+        return 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-800/60';
+      case 'in-talk':
+        return 'bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300 border-violet-200 dark:border-violet-800/60';
+      case 'tracker':
+        return 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60';
+      default:
+        return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-30 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+    <header className="sticky top-0 z-30 w-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           
@@ -143,7 +162,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             </div>
 
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hidden sm:flex">
+              <div className={`p-1.5 rounded-lg border hidden sm:flex ${getSectionIconColor()}`}>
                 <Icon className="w-4 h-4" />
               </div>
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
@@ -159,7 +178,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             {activeTab === 'tracker' ? (
               <button
                 onClick={onOpenAddTrackedPlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{t.trackPlayerBtn}</span>
@@ -167,7 +186,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             ) : activeTab === 'in-talk' ? (
               <button
                 onClick={onOpenAddProspect}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{t.addTalkProspect}</span>
@@ -175,7 +194,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             ) : activeTab === 'male-roster' ? (
               <button
                 onClick={onOpenAddMalePlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>{t.addMalePlayer}</span>
@@ -183,7 +202,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             ) : (
               <button
                 onClick={onOpenAddPlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-gold-600 hover:bg-gold-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>{t.addPlayer}</span>
@@ -212,7 +231,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
             {/* Quick currency display badge */}
             <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-semibold font-mono-tabular text-slate-700 dark:text-slate-300">
-              <Coins className="w-3.5 h-3.5 text-emerald-600" />
+              <Coins className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
               <span>{currency === 'EUR' ? '€ EUR' : currency === 'USD' ? '$ USD' : '₪ NIS'}</span>
             </div>
 

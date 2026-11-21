@@ -402,19 +402,21 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
 
       {/* 2. Contract End Date, One-Side Option & Salary */}
       {draft.contractMode === 'contracted' && (
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-4">
+        <div className="relative overflow-hidden rounded-xl border border-gold-300/80 dark:border-gold-700/50 bg-gold-50/30 dark:bg-slate-900/80">
+          <div className="h-1 w-full bg-gradient-to-r from-gold-400 via-gold-500 to-amber-500" />
+          <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Club Contract End Date */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <Calendar className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
                 <span>{isHe ? 'תאריך סיום חוזה מול המועדון' : 'Club Contract End Date'}</span>
               </label>
               <input
                 type="date"
                 value={draft.clubContractEndDate || ''}
                 onChange={e => updateDraft(prev => ({ ...prev, clubContractEndDate: e.target.value }))}
-                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-white font-mono-tabular"
+                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono-tabular"
               />
               {draft.clubContractEndDate && (
                 <span className="text-[10px] text-slate-500 mt-1 block font-mono-tabular">
@@ -426,7 +428,7 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
             {/* Salary */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <Banknote className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
                 <span>{isHe ? 'שכר חוזי (בסיס)' : 'Player Salary (Base)'}</span>
               </label>
               <div className="flex items-center gap-2">
@@ -435,14 +437,14 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
                   value={draft.salaryAmount || ''}
                   onChange={e => updateDraft(prev => ({ ...prev, salaryAmount: e.target.value }))}
                   placeholder={isHe ? 'לדוגמה: ₪6,500 או €2,000' : 'e.g. ₪6,500 or €2,000'}
-                  className="flex-1 min-w-0 px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-white font-mono-tabular"
+                  className="flex-1 min-w-0 px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono-tabular"
                 />
                 <select
                   value={draft.salaryPeriod || 'Monthly'}
                   onChange={e =>
                     updateDraft(prev => ({ ...prev, salaryPeriod: e.target.value as SalaryPeriod }))
                   }
-                  className="px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shrink-0"
+                  className="px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shrink-0"
                 >
                   <option value="Monthly">{isHe ? 'חודשי' : 'Monthly'}</option>
                   <option value="Weekly">{isHe ? 'שבועי' : 'Weekly'}</option>
@@ -643,6 +645,7 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       )}
@@ -1005,10 +1008,10 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
         </div>
 
         {/* Benefit D: Bonus for Goals or Assist */}
-        <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 space-y-2.5">
+        <div className="p-3 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-2.5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <Target className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
               <span className="font-semibold text-slate-800 dark:text-slate-200">
                 {isHe ? 'בונוס שערים או בישולים (Goals / Assist)' : 'Bonus for Goals or Assist'}
               </span>
@@ -1052,8 +1055,8 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
                       }
                       className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-all ${
                         selected
-                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
                       }`}
                     >
                       {scopeLabel}
@@ -1096,8 +1099,8 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
               </div>
 
               {matchedTrackedPlayer && (
-                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-mono-tabular flex items-center gap-2 pt-0.5">
-                  <Activity className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="text-[11px] text-indigo-700 dark:text-indigo-300 font-mono-tabular flex items-center gap-2 pt-0.5">
+                  <Activity className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                   <span>
                     {isHe ? 'נתוני מעקב נוכחיים:' : 'Current Tracked Output:'}{' '}
                     <strong>{matchedTrackedPlayer.goals}G</strong> ·{' '}
@@ -1111,10 +1114,10 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
         </div>
 
         {/* Benefit E: Bonus for Points */}
-        <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 space-y-2">
+        <div className="p-3 rounded-lg border border-cyan-200 dark:border-cyan-900/60 bg-cyan-50/40 dark:bg-cyan-950/20 space-y-2">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <TrendingUp className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
               <span className="font-semibold text-slate-800 dark:text-slate-200">
                 {isHe ? 'בונוס נקודות (Points Bonus)' : 'Bonus for Points'}
               </span>
@@ -1329,7 +1332,7 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
         <button
           type="button"
           onClick={handleSave}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-gold-600 hover:bg-gold-700 text-white shadow-xs transition-colors"
         >
           <Save className="w-3.5 h-3.5" />
           <span>{isHe ? 'שמור הסכם אימון' : 'Save Training Agreement'}</span>

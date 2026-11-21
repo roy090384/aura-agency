@@ -321,6 +321,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ] as const
             ).map(option => {
               const active = scope === option.id;
+              const activeCls =
+                option.id === 'female'
+                  ? 'bg-rose-500 text-white shadow-2xs'
+                  : option.id === 'male'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-gold-600 text-white shadow-2xs';
               return (
                 <button
                   key={option.id}
@@ -328,12 +334,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onClick={() => setScope(option.id)}
                   className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                     active
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                      ? activeCls
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <span>{option.label}</span>
-                  <span className="font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400">
+                  <span className={`font-mono tabular-nums text-[11px] ${active ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'}`}>
                     {option.count}
                   </span>
                 </button>
@@ -349,7 +355,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => onNavigateTab('agent-settings')}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors whitespace-nowrap shrink-0"
           >
-            <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <UserCheck className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
             <span>{t.agentSettings}</span>
           </button>
 
@@ -357,7 +363,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               type="button"
               onClick={() => onOpenAddPlayer('female')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors whitespace-nowrap shrink-0"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>{isHe ? '+ שחקנית' : '+ Female Player'}</span>
@@ -368,7 +374,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               type="button"
               onClick={() => onOpenAddPlayer('male')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-950 transition-colors whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors whitespace-nowrap shrink-0"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>{isHe ? '+ שחקן' : '+ Male Player'}</span>
@@ -379,164 +385,188 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* 4 Unified Executive KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Represented Roster */}
+        {/* Card 1: Total Represented Roster (Brushed Gold + Female/Male Split) */}
         <div
           onClick={() => onNavigateTab(scope === 'male' ? 'male-roster' : 'roster')}
-          className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer transition-colors"
+          className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-gold-400/70 dark:hover:border-gold-500/50 cursor-pointer transition-all"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {isHe ? 'סגל מיוצג פעיל' : 'Represented Roster'}
-            </span>
-            <Users className="w-4 h-4 text-slate-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono tabular-nums">
-              {activeCount}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {isHe ? `פעילים מתוך ${visiblePlayers.length}` : `active of ${visiblePlayers.length}`}
-            </span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
-            {scope === 'all' ? (
-              <>
-                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
-                  {isHe ? 'נשים' : 'Female'}: {femaleActiveCount}/{players.length}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="text-sky-700 dark:text-sky-400 font-semibold">
-                  {isHe ? 'גברים' : 'Male'}: {maleActiveCount}/{malePlayers.length}
-                </span>
-              </>
-            ) : (
-              <>
-                <span>Senior: {seniorCount}</span>
-                <span aria-hidden="true">·</span>
-                <span>Youth: {youthCount}</span>
-              </>
+          <div className="h-1 w-full bg-gradient-to-r from-gold-400 via-gold-500 to-amber-500" />
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {isHe ? 'סגל מיוצג פעיל' : 'Represented Roster'}
+              </span>
+              <Users className="w-4 h-4 text-gold-600 dark:text-gold-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono tabular-nums">
+                {activeCount}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {isHe ? `פעילים מתוך ${visiblePlayers.length}` : `active of ${visiblePlayers.length}`}
+              </span>
+            </div>
+            {scope === 'all' && visiblePlayers.length > 0 && (
+              <div className="mt-2.5 h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
+                <div
+                  className="h-full bg-rose-500 transition-all"
+                  style={{ width: `${Math.round((players.length / Math.max(visiblePlayers.length, 1)) * 100)}%` }}
+                />
+                <div
+                  className="h-full bg-blue-500 transition-all"
+                  style={{ width: `${Math.round((malePlayers.length / Math.max(visiblePlayers.length, 1)) * 100)}%` }}
+                />
+              </div>
             )}
+            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
+              {scope === 'all' ? (
+                <>
+                  <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                    {isHe ? 'נשים' : 'Female'}: {femaleActiveCount}/{players.length}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                    {isHe ? 'גברים' : 'Male'}: {maleActiveCount}/{malePlayers.length}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>Senior: {seniorCount}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Youth: {youthCount}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Card 2: Critical Contract Expirations */}
+        {/* Card 2: Critical Contract Expirations (Vivid Crimson/Coral) */}
         <div
           onClick={() => (onNavigateAlertsHub ? onNavigateAlertsHub('contracts') : onNavigateTab('alerts'))}
-          className={`p-5 rounded-xl border cursor-pointer transition-colors ${
+          className={`relative overflow-hidden rounded-xl border cursor-pointer transition-all ${
             criticalExpiring.length > 0
-              ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/70 hover:border-amber-400'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+              ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-800/70 hover:border-rose-400'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-rose-400/50'
           }`}
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-              {t.metricAlertsTitle}
-            </span>
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-amber-700 dark:text-amber-400 font-mono tabular-nums">
-              {criticalExpiring.length}
-            </span>
-            <span className="text-xs text-amber-800 dark:text-amber-300">
-              {t.metricAlertsSub}
-            </span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
-            <span>
-              {isHe ? '90 ימים' : '90d'}: {upcoming90Days.length}
-            </span>
-            <span aria-hidden="true">·</span>
-            {scope === 'all' ? (
+          <div className="h-1 w-full bg-gradient-to-r from-rose-500 via-red-500 to-amber-500" />
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">
+                {t.metricAlertsTitle}
+              </span>
+              <AlertTriangle className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 font-mono tabular-nums">
+                {criticalExpiring.length}
+              </span>
+              <span className="text-xs text-rose-700/80 dark:text-rose-300/80">
+                {t.metricAlertsSub}
+              </span>
+            </div>
+            <div className="mt-3 pt-3 border-t border-rose-200/50 dark:border-rose-900/40 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
               <span>
-                {isHe ? 'נ׳' : 'F'}: {femaleCriticalCount} / {isHe ? 'ג׳' : 'M'}: {maleCriticalCount}
+                {isHe ? '90 ימים' : '90d'}: {upcoming90Days.length}
               </span>
-            ) : (
-              <span className="text-amber-700 dark:text-amber-400 font-medium">
-                {isHe ? 'פתח התראות' : 'Review Alerts'} &rarr;
-              </span>
-            )}
+              <span aria-hidden="true">·</span>
+              {scope === 'all' ? (
+                <span>
+                  {isHe ? 'נ׳' : 'F'}: {femaleCriticalCount} / {isHe ? 'ג׳' : 'M'}: {maleCriticalCount}
+                </span>
+              ) : (
+                <span className="text-rose-600 dark:text-rose-400 font-medium">
+                  {isHe ? 'פתח התראות' : 'Review Alerts'} &rarr;
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Card 3: Upcoming Birthdays (Next 30d) */}
+        {/* Card 3: Upcoming Birthdays (Electric Violet/Blue) */}
         <div
           onClick={() => (onNavigateAlertsHub ? onNavigateAlertsHub('birthdays') : onNavigateTab('alerts'))}
-          className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer transition-colors"
+          className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400/70 dark:hover:border-blue-500/50 cursor-pointer transition-all"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">
-              {t.birthdays} (30d)
-            </span>
-            <Cake className="w-4 h-4 text-rose-500" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono tabular-nums">
-              {scopedBirthdays.length}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {todayBdayCount > 0
-                ? isHe
-                  ? `${todayBdayCount} היום`
-                  : `${todayBdayCount} today`
-                : isHe
-                ? 'ב-30 הימים הקרובים'
-                : 'next 30 days'}
-            </span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
-            {scope === 'all' ? (
-              <>
-                <span className="text-emerald-700 dark:text-emerald-400">
-                  {isHe ? 'נשים' : 'Female'}: {femaleBdayCount}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="text-sky-700 dark:text-sky-400">
-                  {isHe ? 'גברים' : 'Male'}: {maleBdayCount}
-                </span>
-              </>
-            ) : (
-              <>
-                <span>
-                  {isHe ? 'היום' : 'Today'}: {todayBdayCount}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="text-rose-600 dark:text-rose-400 font-medium">
-                  {t.alertsHub} &rarr;
-                </span>
-              </>
-            )}
+          <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                {t.birthdays} (30d)
+              </span>
+              <Cake className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono tabular-nums">
+                {scopedBirthdays.length}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {todayBdayCount > 0
+                  ? isHe
+                    ? `${todayBdayCount} היום`
+                    : `${todayBdayCount} today`
+                  : isHe
+                  ? 'ב-30 הימים הקרובים'
+                  : 'next 30 days'}
+              </span>
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
+              {scope === 'all' ? (
+                <>
+                  <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                    {isHe ? 'נשים' : 'Female'}: {femaleBdayCount}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                    {isHe ? 'גברים' : 'Male'}: {maleBdayCount}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {isHe ? 'היום' : 'Today'}: {todayBdayCount}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                    {t.alertsHub} &rarr;
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Card 4: Est. Training Compensation Pool */}
+        {/* Card 4: Est. Training Compensation Pool (Pitch Emerald / Cyan) */}
         <div
           onClick={() => onNavigateTab('compensation')}
-          className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer transition-colors"
+          className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400/70 dark:hover:border-emerald-500/50 cursor-pointer transition-all"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-              {t.estTrainingCompensation}
-            </span>
-            <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono tabular-nums">
-              {formatCurrencyAmount(compensationSummary.totalIls, 'ILS', currency)}
-            </span>
-            {currency !== 'ILS' && (
-              <span className="text-xs text-slate-400 font-mono tabular-nums">
-                ({formatIls(compensationSummary.totalIls)})
+          <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500" />
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                {t.estTrainingCompensation}
               </span>
-            )}
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums gap-2">
-            <span className="truncate">
-              {t.estimatedAsOf.replace('{date}', formatDatePretty(nextTransferWindowDate))}
-            </span>
-            <span className="shrink-0">
-              {compensationSummary.calculatedCount}/{visiblePlayers.length}
-            </span>
+              <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">
+                {formatCurrencyAmount(compensationSummary.totalIls, 'ILS', currency)}
+              </span>
+              {currency !== 'ILS' && (
+                <span className="text-xs text-slate-400 font-mono tabular-nums">
+                  ({formatIls(compensationSummary.totalIls)})
+                </span>
+              )}
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums gap-2">
+              <span className="truncate">
+                {t.estimatedAsOf.replace('{date}', formatDatePretty(nextTransferWindowDate))}
+              </span>
+              <span className="shrink-0">
+                {compensationSummary.calculatedCount}/{visiblePlayers.length}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -586,8 +616,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span
                           className={`font-semibold ${
                             rosterType === 'female'
-                              ? 'text-emerald-700 dark:text-emerald-400'
-                              : 'text-sky-700 dark:text-sky-400'
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : 'text-blue-600 dark:text-blue-400'
                           }`}
                         >
                           {divisionLabel(rosterType)}
@@ -673,8 +703,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span
                           className={`font-semibold ${
                             b.rosterType === 'female'
-                              ? 'text-emerald-700 dark:text-emerald-400'
-                              : 'text-sky-700 dark:text-sky-400'
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : 'text-blue-600 dark:text-blue-400'
                           }`}
                         >
                           {divisionLabel(b.rosterType)}
@@ -714,17 +744,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {isHe
-                ? 'שיוך מאוחד של שחקניות נשים (ירוק) ושחקני בנים ונוער (כחול) לפי סוכן'
-                : 'Combined Female (emerald) and Male (sky) portfolio distribution across agency representatives'}
+                ? 'שיוך מאוחד של שחקניות נשים (קורל) ושחקני בנים ונוער (כחול) לפי סוכן'
+                : 'Combined Female (coral-rose) and Male (cobalt blue) portfolio distribution across agency representatives'}
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-xs bg-rose-500 inline-block" />
               <span>{isHe ? 'נשים' : 'Female'}</span>
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-sky-600 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-xs bg-blue-500 inline-block" />
               <span>{isHe ? 'גברים/נוער' : 'Male'}</span>
             </span>
           </div>
@@ -746,7 +776,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
                 <div className="text-right rtl:text-left shrink-0">
-                  <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono tabular-nums">
+                  <span className="text-2xl font-extrabold text-gold-600 dark:text-gold-400 font-mono tabular-nums">
                     {total}
                   </span>
                   <span className="block text-[11px] font-semibold text-slate-500 font-mono tabular-nums">
@@ -759,23 +789,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex">
                 {femalePct > 0 && (
                   <div
-                    className="h-full bg-emerald-600 transition-all"
+                    className="h-full bg-rose-500 transition-all"
                     style={{ width: `${femalePct}%` }}
                   />
                 )}
                 {malePct > 0 && (
                   <div
-                    className="h-full bg-sky-600 transition-all"
+                    className="h-full bg-blue-500 transition-all"
                     style={{ width: `${malePct}%` }}
                   />
                 )}
               </div>
 
               <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 font-mono tabular-nums">
-                <span className="text-emerald-700 dark:text-emerald-400">
+                <span className="text-rose-600 dark:text-rose-400 font-semibold">
                   {isHe ? 'נשים' : 'Female'}: {fCount}
                 </span>
-                <span className="text-sky-700 dark:text-sky-400">
+                <span className="text-blue-600 dark:text-blue-400 font-semibold">
                   {isHe ? 'גברים' : 'Male'}: {mCount}
                 </span>
               </div>
@@ -795,17 +825,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <div className="grid grid-cols-4 gap-2 text-center font-mono tabular-nums">
               {[
-                { label: 'GK', val: posCount.GK },
-                { label: 'DEF', val: posCount.DEF },
-                { label: 'MID', val: posCount.MID },
-                { label: 'FWD', val: posCount.FWD }
+                { label: 'GK', val: posCount.GK, tone: 'text-amber-600 dark:text-amber-400 border-amber-200/70 dark:border-amber-800/40' },
+                { label: 'DEF', val: posCount.DEF, tone: 'text-blue-600 dark:text-blue-400 border-blue-200/70 dark:border-blue-800/40' },
+                { label: 'MID', val: posCount.MID, tone: 'text-emerald-600 dark:text-emerald-400 border-emerald-200/70 dark:border-emerald-800/40' },
+                { label: 'FWD', val: posCount.FWD, tone: 'text-rose-600 dark:text-rose-400 border-rose-200/70 dark:border-rose-800/40' }
               ].map(pos => (
                 <div
                   key={pos.label}
-                  className="py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/70"
+                  className={`py-1.5 rounded-md bg-white dark:bg-slate-900 border ${pos.tone}`}
                 >
-                  <span className="block text-[10px] font-semibold text-slate-400">{pos.label}</span>
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">{pos.val}</span>
+                  <span className="block text-[10px] font-bold opacity-80">{pos.label}</span>
+                  <span className="text-sm font-extrabold text-slate-900 dark:text-white">{pos.val}</span>
                 </div>
               ))}
             </div>
@@ -817,7 +847,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigateTab('agent-settings')}
-                className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline"
+                className="text-gold-700 dark:text-gold-400 font-semibold hover:underline"
               >
                 {t.agentSettings} &rarr;
               </button>
