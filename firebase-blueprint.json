@@ -113,6 +113,7 @@
         "language": { "type": "string", "maxLength": 8 },
         "isDarkMode": { "type": "boolean" },
         "nextTransferWindowDate": { "type": "string", "maxLength": 32 },
+        "watchedNextMatchKeys": { "type": "array", "description": "Selected male and female player keys displayed in Dashboard Next Match Center" },
         "userId": { "type": "string", "maxLength": 128 },
         "updatedAt": { "type": "string", "maxLength": 64 }
       },

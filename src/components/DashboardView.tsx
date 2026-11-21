@@ -45,6 +45,7 @@ import {
   getSavedFemaleCpiPct
 } from '../utils/trainingCompensation';
 import { formatCurrencyAmount } from '../utils/currency';
+import { NextMatchWindow } from './NextMatchWindow';
 
 type DivisionScope = 'all' | 'female' | 'male';
 
@@ -71,6 +72,8 @@ interface DashboardViewProps {
   language: Language;
   currency?: Currency;
   nextTransferWindowDate?: string;
+  watchedNextMatchKeys?: string[];
+  onChangeWatchedNextMatchKeys?: (keys: string[]) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -90,7 +93,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenAddPlayer,
   language,
   currency = 'EUR',
-  nextTransferWindowDate = getDefaultNextTransferWindowDate()
+  nextTransferWindowDate = getDefaultNextTransferWindowDate(),
+  watchedNextMatchKeys = [],
+  onChangeWatchedNextMatchKeys
 }) => {
   const t = TRANSLATIONS[language];
   const isHe = language === 'he';
@@ -570,6 +575,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Live Next Match Center (Selected Male & Female Players) */}
+      <NextMatchWindow
+        players={players}
+        malePlayers={malePlayers}
+        scope={scope}
+        watchedKeys={watchedNextMatchKeys}
+        onChangeWatchedKeys={keys => onChangeWatchedNextMatchKeys?.(keys)}
+        onSelectPlayer={onSelectPlayer}
+        language={language}
+      />
 
       {/* Compact Side-by-Side Priority Radar: Urgent Contracts (L) & Upcoming Birthdays (R) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

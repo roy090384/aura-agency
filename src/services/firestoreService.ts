@@ -330,11 +330,11 @@ export async function deleteForeignProspectFromFirestore(userId: string, prospec
 }
 
 /**
- * Real-time subscription to user's agency preferences (including nextTransferWindowDate)
+ * Real-time subscription to user's agency preferences (including nextTransferWindowDate and watchedNextMatchKeys)
  */
 export function subscribeToPreferences(
   userId: string,
-  onUpdate: (prefs: { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string }) => void,
+  onUpdate: (prefs: { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string; watchedNextMatchKeys?: string[] }) => void,
   onError?: (err: any) => void
 ) {
   const path = `users/${userId}/settings/preferences`;
@@ -344,7 +344,7 @@ export function subscribeToPreferences(
     docRef,
     (snapshot) => {
       if (snapshot.exists()) {
-        onUpdate(snapshot.data() as { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string });
+        onUpdate(snapshot.data() as { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string; watchedNextMatchKeys?: string[] });
       }
     },
     (error) => {
@@ -355,11 +355,11 @@ export function subscribeToPreferences(
 }
 
 /**
- * Save agency preferences (currency, language, theme, nextTransferWindowDate) to Firestore
+ * Save agency preferences (currency, language, theme, nextTransferWindowDate, watchedNextMatchKeys) to Firestore
  */
 export async function savePreferencesToFirestore(
   userId: string,
-  preferences: { currency: Currency; language: Language; isDarkMode: boolean; nextTransferWindowDate?: string }
+  preferences: { currency: Currency; language: Language; isDarkMode: boolean; nextTransferWindowDate?: string; watchedNextMatchKeys?: string[] }
 ) {
   const path = `users/${userId}/settings/preferences`;
   try {

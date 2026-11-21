@@ -268,3 +268,30 @@ export interface ForeignProspect {
   statusUpdatedAt?: string;
 }
 
+export interface MatchSourceLink {
+  title: string;
+  url: string;
+}
+
+export interface NextMatchInfo {
+  key: string; // `${rosterType}:${playerId}`
+  playerId: string;
+  rosterType: 'female' | 'male';
+  status: 'found' | 'not_found' | 'error';
+  homeTeam?: string;
+  awayTeam?: string;
+  opponent?: string;
+  isHome?: boolean;
+  kickoffIso?: string;
+  competition?: string;
+  venue?: string;
+  matchedTeamName?: string;
+  teamScopeNote?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  sources?: MatchSourceLink[];
+  lookupLinks: { label: string; url: string }[];
+  fetchedAt: string;
+  errorMessage?: string;
+}
+

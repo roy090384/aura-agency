@@ -106,6 +106,22 @@ export default function App() {
     return getDefaultNextTransferWindowDate();
   });
 
+  // Selected Male & Female player keys for Dashboard Next Match Center
+  const [watchedNextMatchKeys, setWatchedNextMatchKeys] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('aura_watched_next_match_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((x): x is string => typeof x === 'string').slice(0, 24);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load watchedNextMatchKeys', e);
+    }
+    return [];
+  });
+
   // User-owned Female Roster Players State
   const [players, setPlayers] = useState<Player[]>(() => {
     try {
@@ -359,6 +375,15 @@ export default function App() {
     }
   }, [nextTransferWindowDate]);
 
+  // Persist Dashboard Next Match selected player keys
+  useEffect(() => {
+    try {
+      localStorage.setItem('aura_watched_next_match_v1', JSON.stringify(watchedNextMatchKeys));
+    } catch (e) {
+      console.error('Failed to save watchedNextMatchKeys', e);
+    }
+  }, [watchedNextMatchKeys]);
+
   // Firebase Auth and real-time Firestore synchronization
   useEffect(() => {
     let unsubPlayers: (() => void) | undefined;
@@ -409,6 +434,11 @@ export default function App() {
           if (remotePrefs.nextTransferWindowDate && /^\d{4}-\d{2}-\d{2}$/.test(remotePrefs.nextTransferWindowDate)) {
             setNextTransferWindowDate(remotePrefs.nextTransferWindowDate);
           }
+          if (Array.isArray(remotePrefs.watchedNextMatchKeys)) {
+            setWatchedNextMatchKeys(
+              remotePrefs.watchedNextMatchKeys.filter((x): x is string => typeof x === 'string').slice(0, 24)
+            );
+          }
         });
       } else {
         if (unsubPlayers) unsubPlayers();
@@ -433,12 +463,17 @@ export default function App() {
     };
   }, []);
 
-  // Sync preferences (language, currency, dark mode) to cloud for authenticated user
+  // Sync preferences (language, currency, dark mode, next match watchlist) to cloud for authenticated user
   useEffect(() => {
     if (currentUser) {
-      savePreferencesToFirestore(currentUser.uid, { language, currency, isDarkMode }).catch(console.error);
+      savePreferencesToFirestore(currentUser.uid, {
+        language,
+        currency,
+        isDarkMode,
+        watchedNextMatchKeys
+      }).catch(console.error);
     }
-  }, [currentUser, language, currency, isDarkMode]);
+  }, [currentUser, language, currency, isDarkMode, watchedNextMatchKeys]);
 
   // Keep existing Player Tracker entries automatically synced with Female & Male Rosters (never adds new players)
   useEffect(() => {
@@ -1331,6 +1366,8 @@ export default function App() {
             foreignProspects={foreignProspects}
             trackedPlayers={trackedPlayers}
             agents={agents}
+            watchedNextMatchKeys={watchedNextMatchKeys}
+            onChangeWatchedNextMatchKeys={setWatchedNextMatchKeys}
             onNavigateTab={setActiveTab}
             onNavigateAlertsHub={(subTab) => {
               setAlertsSubTab(subTab);
