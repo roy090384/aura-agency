@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   ContractOptionSide,
+  GoalsOrAssistsScope,
   Language,
   LeaveCheckpoint,
   MinutesClausePct,
   Player,
   ReleaseClubClause,
   SalaryPeriod,
+  SeasonalSalaryEntry,
   TrackedPlayer,
   TrainingAgreementData
 } from '../types/player';
@@ -35,7 +37,9 @@ import {
   Scale,
   ShieldAlert,
   ShieldCheck,
+  Target,
   Trash2,
+  TrendingUp,
   Trophy
 } from 'lucide-react';
 
@@ -75,6 +79,8 @@ const BIGGER_CLUB_SUGGESTIONS_FEMALE = [
   'NCAA / US Pro (NWSL / USL)'
 ];
 
+const SEASON_SUGGESTIONS = ['2025/26', '2026/27', '2027/28', '2028/29', '2029/30'];
+
 export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
   player,
   rosterType,
@@ -98,7 +104,10 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
         ...base.benefits,
         ...(existing.benefits || {})
       },
-      releaseClubs: existing.releaseClubs ? [...existing.releaseClubs] : []
+      seasonalSalaries: existing.seasonalSalaries
+        ? existing.seasonalSalaries.map(s => ({ ...s }))
+        : [],
+      releaseClubs: existing.releaseClubs ? existing.releaseClubs.map(c => ({ ...c })) : []
     };
   }, [player.trainingAgreement]);
 
@@ -139,6 +148,43 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
     setDraft(prev => updater(prev));
     setHasUnsavedChanges(true);
     setJustSaved(false);
+  };
+
+  const handleAddSeasonSalary = () => {
+    const existingCount = (draft.seasonalSalaries || []).length;
+    const defaultSeason = SEASON_SUGGESTIONS[Math.min(existingCount + 1, SEASON_SUGGESTIONS.length - 1)] || '';
+    const newEntry: SeasonalSalaryEntry = {
+      id: `sal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      season: defaultSeason,
+      amount: draft.salaryAmount || '',
+      period: draft.salaryPeriod || 'Monthly',
+      notes: ''
+    };
+    updateDraft(prev => ({
+      ...prev,
+      hasSeasonalSalaries: true,
+      seasonalSalaries: [...(prev.seasonalSalaries || []), newEntry]
+    }));
+  };
+
+  const handleUpdateSeasonSalary = (
+    id: string,
+    field: keyof SeasonalSalaryEntry,
+    value: string
+  ) => {
+    updateDraft(prev => ({
+      ...prev,
+      seasonalSalaries: (prev.seasonalSalaries || []).map(item =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
+    }));
+  };
+
+  const handleRemoveSeasonSalary = (id: string) => {
+    updateDraft(prev => ({
+      ...prev,
+      seasonalSalaries: (prev.seasonalSalaries || []).filter(item => item.id !== id)
+    }));
   };
 
   const handleAddReleaseClub = () => {
@@ -185,8 +231,19 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
       }))
       .filter(c => c.clubName.length > 0 || c.amount.length > 0);
 
+    const cleanedSeasonalSalaries = (draft.seasonalSalaries || [])
+      .map(s => ({
+        ...s,
+        season: s.season.trim(),
+        amount: s.amount.trim(),
+        period: s.period || 'Monthly',
+        notes: s.notes?.trim() || ''
+      }))
+      .filter(s => s.season.length > 0 || s.amount.length > 0);
+
     const payload: TrainingAgreementData = {
       ...draft,
+      seasonalSalaries: cleanedSeasonalSalaries,
       releaseClubs: cleanedClubs,
       updatedAt: new Date().toISOString()
     };
@@ -370,7 +427,7 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
                 <Banknote className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>{isHe ? 'שכר חוזי' : 'Player Salary'}</span>
+                <span>{isHe ? 'שכר חוזי (בסיס)' : 'Player Salary (Base)'}</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -393,6 +450,131 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* Salary Per Season (Multi-Season Breakdown Toggle) */}
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-bold text-slate-800 dark:text-slate-200">
+                  {isHe ? 'שכר מדורג לפי עונה בחוזה' : 'Salary Per Season (Multi-Season Breakdown)'}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {isHe
+                    ? 'הפעל אם השכר משתנה מעונה לעונה (לדוגמה: 2026/27, 2027/28)'
+                    : 'Enable when salary varies across contract seasons (e.g. 2026/27, 2027/28)'}
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={Boolean(draft.hasSeasonalSalaries)}
+                onChange={checked =>
+                  updateDraft(prev => {
+                    const nextRows =
+                      checked && (!prev.seasonalSalaries || prev.seasonalSalaries.length === 0)
+                        ? [
+                            {
+                              id: `sal-${Date.now()}`,
+                              season: '2026/27',
+                              amount: prev.salaryAmount || '',
+                              period: prev.salaryPeriod || 'Monthly',
+                              notes: ''
+                            }
+                          ]
+                        : prev.seasonalSalaries || [];
+                    return {
+                      ...prev,
+                      hasSeasonalSalaries: checked,
+                      seasonalSalaries: nextRows
+                    };
+                  })
+                }
+                label="Salary per season"
+              />
+            </div>
+
+            {draft.hasSeasonalSalaries && (
+              <div className="space-y-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <datalist id={`salary-seasons-${player.id}`}>
+                  {SEASON_SUGGESTIONS.map(season => (
+                    <option key={season} value={season} />
+                  ))}
+                </datalist>
+
+                {(draft.seasonalSalaries || []).map((entry, idx) => (
+                  <div
+                    key={entry.id}
+                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center"
+                  >
+                    <div className="sm:col-span-3">
+                      <input
+                        type="text"
+                        list={`salary-seasons-${player.id}`}
+                        value={entry.season}
+                        onChange={e =>
+                          handleUpdateSeasonSalary(entry.id, 'season', e.target.value)
+                        }
+                        placeholder={isHe ? `עונה #${idx + 1} (2026/27)` : `Season #${idx + 1} (2026/27)`}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold font-mono-tabular"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <input
+                        type="text"
+                        value={entry.amount}
+                        onChange={e =>
+                          handleUpdateSeasonSalary(entry.id, 'amount', e.target.value)
+                        }
+                        placeholder={isHe ? 'סכום (₪ / €)' : 'Amount (e.g. ₪7,500)'}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800 text-slate-900 dark:text-white font-mono-tabular font-bold"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <select
+                        value={entry.period || 'Monthly'}
+                        onChange={e =>
+                          handleUpdateSeasonSalary(entry.id, 'period', e.target.value)
+                        }
+                        className="w-full px-2 py-1.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
+                      >
+                        <option value="Monthly">{isHe ? 'חודשי' : 'Monthly'}</option>
+                        <option value="Weekly">{isHe ? 'שבועי' : 'Weekly'}</option>
+                        <option value="Annual">{isHe ? 'שנתי' : 'Annual'}</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <input
+                        type="text"
+                        value={entry.notes || ''}
+                        onChange={e =>
+                          handleUpdateSeasonSalary(entry.id, 'notes', e.target.value)
+                        }
+                        placeholder={isHe ? 'תנאי / הערה (אופציונלי)' : 'Condition / note (optional)'}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800 text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="sm:col-span-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSeasonSalary(entry.id)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md"
+                        title={isHe ? 'הסר עונה' : 'Remove season salary'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={handleAddSeasonSalary}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-dashed border-emerald-400 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isHe ? 'הוסף עונה נוספת' : 'Add Season Salary'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* One-Side Option Toggle */}
@@ -816,6 +998,168 @@ export const TrainingAgreementPanel: React.FC<TrainingAgreementPanelProps> = ({
                   }))
                 }
                 placeholder={isHe ? 'סכום המענק (לדוגמה: ₪5,000)' : 'Bonus amount (e.g. ₪5,000)'}
+                className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono-tabular"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Benefit D: Bonus for Goals or Assist */}
+        <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                {isHe ? 'בונוס שערים או בישולים (Goals / Assist)' : 'Bonus for Goals or Assist'}
+              </span>
+            </div>
+            <ToggleSwitch
+              checked={Boolean(draft.benefits?.goalsOrAssistsBonus)}
+              onChange={checked =>
+                updateDraft(prev => ({
+                  ...prev,
+                  benefits: {
+                    ...(prev.benefits || {}),
+                    goalsOrAssistsBonus: checked,
+                    goalsOrAssistsType: prev.benefits?.goalsOrAssistsType || 'Goals & Assists'
+                  }
+                }))
+              }
+              label="Goals or assists bonus"
+            />
+          </div>
+          {draft.benefits?.goalsOrAssistsBonus && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-1.5">
+                {(['Goals', 'Assists', 'Goals & Assists'] as GoalsOrAssistsScope[]).map(scope => {
+                  const selected = (draft.benefits?.goalsOrAssistsType || 'Goals & Assists') === scope;
+                  const scopeLabel = isHe
+                    ? scope === 'Goals'
+                      ? 'שערים (Goals)'
+                      : scope === 'Assists'
+                      ? 'בישולים (Assists)'
+                      : 'שערים ובישולים (G+A)'
+                    : scope;
+                  return (
+                    <button
+                      key={scope}
+                      type="button"
+                      onClick={() =>
+                        updateDraft(prev => ({
+                          ...prev,
+                          benefits: { ...(prev.benefits || {}), goalsOrAssistsType: scope }
+                        }))
+                      }
+                      className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-all ${
+                        selected
+                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                      }`}
+                    >
+                      {scopeLabel}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={draft.benefits?.goalsOrAssistsThreshold || ''}
+                  onChange={e =>
+                    updateDraft(prev => ({
+                      ...prev,
+                      benefits: { ...(prev.benefits || {}), goalsOrAssistsThreshold: e.target.value }
+                    }))
+                  }
+                  placeholder={
+                    isHe
+                      ? 'תנאי / יעד (לדוגמה: לכל שער / 10+ שערים ובישולים)'
+                      : 'Trigger / target (e.g. Per goal/assist or 10+ G+A)'
+                  }
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+                <input
+                  type="text"
+                  value={draft.benefits?.goalsOrAssistsBonusAmount || ''}
+                  onChange={e =>
+                    updateDraft(prev => ({
+                      ...prev,
+                      benefits: { ...(prev.benefits || {}), goalsOrAssistsBonusAmount: e.target.value }
+                    }))
+                  }
+                  placeholder={
+                    isHe ? 'סכום הבונוס (לדוגמה: ₪500 לשער / ₪4,000)' : 'Bonus amount (e.g. ₪500 each / ₪4,000)'
+                  }
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono-tabular"
+                />
+              </div>
+
+              {matchedTrackedPlayer && (
+                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-mono-tabular flex items-center gap-2 pt-0.5">
+                  <Activity className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>
+                    {isHe ? 'נתוני מעקב נוכחיים:' : 'Current Tracked Output:'}{' '}
+                    <strong>{matchedTrackedPlayer.goals}G</strong> ·{' '}
+                    <strong>{matchedTrackedPlayer.assists}A</strong> (
+                    <strong>{matchedTrackedPlayer.goals + matchedTrackedPlayer.assists} G+A</strong>)
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Benefit E: Bonus for Points */}
+        <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                {isHe ? 'בונוס נקודות (Points Bonus)' : 'Bonus for Points'}
+              </span>
+            </div>
+            <ToggleSwitch
+              checked={Boolean(draft.benefits?.pointsBonus)}
+              onChange={checked =>
+                updateDraft(prev => ({
+                  ...prev,
+                  benefits: { ...(prev.benefits || {}), pointsBonus: checked }
+                }))
+              }
+              label="Points bonus"
+            />
+          </div>
+          {draft.benefits?.pointsBonus && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={draft.benefits?.pointsThreshold || ''}
+                onChange={e =>
+                  updateDraft(prev => ({
+                    ...prev,
+                    benefits: { ...(prev.benefits || {}), pointsThreshold: e.target.value }
+                  }))
+                }
+                placeholder={
+                  isHe
+                    ? 'תנאי נקודות (לדוגמה: לכל נקודה / 45+ נקודות ליגה)'
+                    : 'Points condition (e.g. Per point or 45+ league points)'
+                }
+                className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+              />
+              <input
+                type="text"
+                value={draft.benefits?.pointsBonusAmount || ''}
+                onChange={e =>
+                  updateDraft(prev => ({
+                    ...prev,
+                    benefits: { ...(prev.benefits || {}), pointsBonusAmount: e.target.value }
+                  }))
+                }
+                placeholder={
+                  isHe ? 'סכום הבונוס (לדוגמה: ₪250 לנקודה / ₪5,000)' : 'Bonus amount (e.g. ₪250/pt or ₪5,000)'
+                }
                 className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono-tabular"
               />
             </div>

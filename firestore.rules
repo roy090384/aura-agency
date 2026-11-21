@@ -44,6 +44,7 @@ service cloud.firestore {
           && (!('trainingAgreement' in request.resource.data) || (
             request.resource.data.trainingAgreement is map
             && (!('releaseClubs' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.releaseClubs is list && request.resource.data.trainingAgreement.releaseClubs.size() <= 25))
+            && (!('seasonalSalaries' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.seasonalSalaries is list && request.resource.data.trainingAgreement.seasonalSalaries.size() <= 15))
           ));
       }
 
@@ -62,6 +63,7 @@ service cloud.firestore {
           && (!('trainingAgreement' in request.resource.data) || (
             request.resource.data.trainingAgreement is map
             && (!('releaseClubs' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.releaseClubs is list && request.resource.data.trainingAgreement.releaseClubs.size() <= 25))
+            && (!('seasonalSalaries' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.seasonalSalaries is list && request.resource.data.trainingAgreement.seasonalSalaries.size() <= 15))
           ));
       }
 

@@ -53,6 +53,16 @@ export interface ReleaseClubClause {
   notes?: string;
 }
 
+export interface SeasonalSalaryEntry {
+  id: string;
+  season: string;
+  amount: string;
+  period: SalaryPeriod;
+  notes?: string;
+}
+
+export type GoalsOrAssistsScope = 'Goals' | 'Assists' | 'Goals & Assists';
+
 export interface TrainingAgreementBenefits {
   shoes?: boolean;
   shoesDetails?: string;
@@ -61,6 +71,13 @@ export interface TrainingAgreementBenefits {
   appearancesBonus?: boolean;
   appearancesBonusAmount?: string;
   appearancesThreshold?: string;
+  goalsOrAssistsBonus?: boolean;
+  goalsOrAssistsType?: GoalsOrAssistsScope;
+  goalsOrAssistsThreshold?: string;
+  goalsOrAssistsBonusAmount?: string;
+  pointsBonus?: boolean;
+  pointsThreshold?: string;
+  pointsBonusAmount?: string;
 }
 
 export interface TrainingAgreementData {
@@ -71,6 +88,8 @@ export interface TrainingAgreementData {
   optionNote?: string;
   salaryAmount?: string;
   salaryPeriod?: SalaryPeriod;
+  hasSeasonalSalaries?: boolean;
+  seasonalSalaries?: SeasonalSalaryEntry[];
   minutesClauseEnabled?: boolean;
   minutesThresholdPct?: MinutesClausePct;
   minutesCheckpoint?: LeaveCheckpoint;
