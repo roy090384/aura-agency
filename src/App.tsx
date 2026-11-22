@@ -803,14 +803,37 @@ export default function App() {
   // Owner-only CRM Team Access Rules handlers
   const handleSaveTeamMember = async (member: TeamMemberRule) => {
     if (!currentUser || !workspaceUid || !permissions.isOwner) {
-      showToast(language === 'he' ? 'רק בעל הסוכנות יכול לנהל הרשאות משתמשים.' : 'Only the agency owner can edit user access rules.');
-      return;
+      const msg = language === 'he'
+        ? 'רק בעל הסוכנות יכול לנהל הרשאות משתמשים.'
+        : 'Only the agency owner can edit user access rules.';
+      showToast(msg);
+      throw new Error(msg);
     }
-    await saveTeamMemberRuleToFirestore(workspaceUid, {
-      ...member,
-      userId: workspaceUid
-    });
-    showToast(language === 'he' ? 'הרשאות המשתמש עודכנו בהצלחה.' : `Access rules saved for ${member.displayName || member.uid}.`);
+    try {
+      const saved = await saveTeamMemberRuleToFirestore(workspaceUid, {
+        ...member,
+        userId: workspaceUid
+      });
+      setTeamMembers(prev => {
+        const exists = prev.some(m => m.uid === saved.uid);
+        const next = exists
+          ? prev.map(m => (m.uid === saved.uid ? saved : m))
+          : [...prev, saved];
+        return next.sort((a, b) => (a.displayName || a.uid).localeCompare(b.displayName || b.uid));
+      });
+      showToast(
+        language === 'he'
+          ? `הרשאות המשתמש נשמרו עבור ${saved.displayName || saved.uid}.`
+          : `Access rules saved for ${saved.displayName || saved.uid}.`
+      );
+    } catch (err: any) {
+      showToast(
+        language === 'he'
+          ? 'שגיאה בשמירת הרשאות המשתמש ב-Firebase.'
+          : 'Failed to save user access rule to Firebase.'
+      );
+      throw err;
+    }
   };
 
   const handleDeleteTeamMember = async (memberUid: string) => {
@@ -818,8 +841,14 @@ export default function App() {
       showToast(language === 'he' ? 'רק בעל הסוכנות יכול להסיר משתמשים.' : 'Only the agency owner can revoke user access.');
       return;
     }
-    await deleteTeamMemberRuleFromFirestore(workspaceUid, memberUid);
-    showToast(language === 'he' ? 'הגישה של המשתמש הוסרה.' : 'User workspace access revoked.');
+    try {
+      await deleteTeamMemberRuleFromFirestore(workspaceUid, memberUid);
+      setTeamMembers(prev => prev.filter(m => m.uid !== memberUid));
+      showToast(language === 'he' ? 'הגישה של המשתמש הוסרה.' : 'User workspace access revoked.');
+    } catch (err) {
+      showToast(language === 'he' ? 'שגיאה בהסרת המשתמש.' : 'Failed to revoke user access.');
+      throw err;
+    }
   };
 
   // Helper to sync a single roster player update onto any existing matching Player Tracker row (never creates a new row)

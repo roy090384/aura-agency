@@ -541,6 +541,34 @@ export async function registerWorkspaceDirectory(ownerUid: string) {
   }
 }
 
+export function normalizeTeamMemberRule(ownerUid: string, raw: Partial<TeamMemberRule> & { uid: string }): TeamMemberRule {
+  const now = new Date().toISOString();
+  const role: TeamMemberRule['role'] =
+    raw.role === 'manager' || raw.role === 'viewer' || raw.role === 'regular'
+      ? raw.role
+      : 'regular';
+  const cleanUid = String(raw.uid || '').trim();
+  const cleanEmail = typeof raw.email === 'string' ? raw.email.trim() : '';
+  const cleanName = typeof raw.displayName === 'string' ? raw.displayName.trim() : '';
+
+  return {
+    uid: cleanUid,
+    displayName: cleanName || cleanEmail || 'Team User',
+    email: cleanEmail,
+    role,
+    active: raw.active === undefined ? true : Boolean(raw.active),
+    canViewPlayers: Boolean(raw.canViewPlayers),
+    canCreatePlayers: Boolean(raw.canCreatePlayers),
+    canEditPlayers: Boolean(raw.canEditPlayers),
+    canDeletePlayers: Boolean(raw.canDeletePlayers),
+    canAccessScouting: Boolean(raw.canAccessScouting),
+    canEditTracker: Boolean(raw.canEditTracker),
+    userId: ownerUid,
+    createdAt: typeof raw.createdAt === 'string' && raw.createdAt ? raw.createdAt : now,
+    updatedAt: typeof raw.updatedAt === 'string' && raw.updatedAt ? raw.updatedAt : now
+  };
+}
+
 /**
  * Seeds the pre-approved regular user UID if not yet stored in teamMembers (Owner only).
  */
@@ -592,7 +620,10 @@ export async function resolveWorkspaceForUser(user: User): Promise<WorkspaceReso
       return { status: 'unauthorized' };
     }
 
-    const rule = memberSnap.data() as TeamMemberRule;
+    const rule = normalizeTeamMemberRule(ownerUid, {
+      ...(memberSnap.data() as Partial<TeamMemberRule>),
+      uid: user.uid
+    });
     if (!rule.active) {
       return { status: 'disabled', workspaceUid: ownerUid, rule };
     }
@@ -620,7 +651,13 @@ export function subscribeToTeamMembers(
     (snapshot) => {
       const list: TeamMemberRule[] = [];
       snapshot.forEach((docSnap) => {
-        list.push(docSnap.data() as TeamMemberRule);
+        const raw = docSnap.data() as Partial<TeamMemberRule>;
+        list.push(
+          normalizeTeamMemberRule(ownerUid, {
+            ...raw,
+            uid: raw.uid || docSnap.id
+          })
+        );
       });
       list.sort((a, b) => (a.displayName || a.uid).localeCompare(b.displayName || b.uid));
       onUpdate(list);
@@ -647,7 +684,13 @@ export function subscribeToMyTeamMemberRule(
       if (!snapshot.exists()) {
         onUpdate(null);
       } else {
-        onUpdate(snapshot.data() as TeamMemberRule);
+        const raw = snapshot.data() as Partial<TeamMemberRule>;
+        onUpdate(
+          normalizeTeamMemberRule(ownerUid, {
+            ...raw,
+            uid: raw.uid || snapshot.id
+          })
+        );
       }
     },
     () => {
@@ -659,18 +702,25 @@ export function subscribeToMyTeamMemberRule(
 /**
  * Owner-only write for saving or updating a team member access rule.
  */
-export async function saveTeamMemberRuleToFirestore(ownerUid: string, member: TeamMemberRule) {
-  const path = `users/${ownerUid}/teamMembers/${member.uid}`;
+export async function saveTeamMemberRuleToFirestore(ownerUid: string, member: TeamMemberRule): Promise<TeamMemberRule> {
+  const normalized = normalizeTeamMemberRule(ownerUid, {
+    ...member,
+    updatedAt: new Date().toISOString()
+  });
+
+  if (!normalized.uid || !/^[a-zA-Z0-9_-]+$/.test(normalized.uid) || normalized.uid.length > 128) {
+    throw new Error('Invalid Firebase User UID. Please paste the exact alphanumeric Firebase Auth UID (not an email address).');
+  }
+
+  const path = `users/${ownerUid}/teamMembers/${normalized.uid}`;
   try {
-    const docRef = doc(db, 'users', ownerUid, 'teamMembers', member.uid);
-    const payload = stripUndefined({
-      ...member,
-      userId: ownerUid,
-      updatedAt: new Date().toISOString()
-    });
+    const docRef = doc(db, 'users', ownerUid, 'teamMembers', normalized.uid);
+    const payload = stripUndefined(normalized);
     await setDoc(docRef, payload, { merge: true });
+    return normalized;
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
@@ -678,9 +728,10 @@ export async function saveTeamMemberRuleToFirestore(ownerUid: string, member: Te
  * Owner-only delete for revoking/removing a team member rule.
  */
 export async function deleteTeamMemberRuleFromFirestore(ownerUid: string, memberUid: string) {
-  const path = `users/${ownerUid}/teamMembers/${memberUid}`;
+  const cleanUid = memberUid.trim();
+  const path = `users/${ownerUid}/teamMembers/${cleanUid}`;
   try {
-    await deleteDoc(doc(db, 'users', ownerUid, 'teamMembers', memberUid));
+    await deleteDoc(doc(db, 'users', ownerUid, 'teamMembers', cleanUid));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
