@@ -65,6 +65,8 @@ interface PlayerDetailModalProps {
     linkedTrackedPlayerId?: string
   ) => void;
   onNavigateToTracker?: () => void;
+  canEditPlayers?: boolean;
+  canDeletePlayers?: boolean;
 }
 
 export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
@@ -82,7 +84,9 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
   nextTransferWindowDate = getDefaultNextTransferWindowDate(),
   trackedPlayers = [],
   onSaveTrainingAgreement,
-  onNavigateToTracker
+  onNavigateToTracker,
+  canEditPlayers = true,
+  canDeletePlayers = true
 }) => {
   const t = TRANSLATIONS[language];
   const [activeTab, setActiveTab] = useState<'overview' | 'training-agreement' | 'contract' | 'notes'>('overview');
@@ -181,12 +185,14 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                   <strong>1-Month Warning:</strong> Agency mandate expires in {days} days. Renew representation terms to secure exclusivity.
                 </span>
               </div>
-              <button
-                onClick={() => onQuickExtend(player)}
-                className="px-2.5 py-1 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded transition-colors whitespace-nowrap shrink-0"
-              >
-                Renew Contract Now
-              </button>
+              {canEditPlayers && (
+                <button
+                  onClick={() => onQuickExtend(player)}
+                  className="px-2.5 py-1 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded transition-colors whitespace-nowrap shrink-0"
+                >
+                  Renew Contract Now
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -500,12 +506,14 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => onQuickExtend(player)}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors"
-                  >
-                    {t.extend}
-                  </button>
+                  {canEditPlayers && (
+                    <button
+                      onClick={() => onQuickExtend(player)}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors"
+                    >
+                      {t.extend}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -527,33 +535,41 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
 
         {/* Footer Actions with Easy Delete Option */}
         <div className="p-4 px-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
-          <button
-            onClick={() => {
-              onClose();
-              onRequestDelete(player);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors"
-            title="Delete player from agency"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>{t.deletePlayer}</span>
-          </button>
+          {canDeletePlayers ? (
+            <button
+              onClick={() => {
+                onClose();
+                onRequestDelete(player);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors"
+              title="Delete player from agency"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{t.deletePlayer}</span>
+            </button>
+          ) : (
+            <span className="text-[11px] font-medium text-slate-400">
+              {language === 'he' ? 'מצב צפייה בלבד בעריכת פרופיל' : 'Read-only player dossier'}
+            </span>
+          )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onEdit(player)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors"
-            >
-              <Edit className="w-3.5 h-3.5" />
-              <span>{t.editPlayer}</span>
-            </button>
-            <button
-              onClick={() => onQuickExtend(player)}
-              className="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors"
-            >
-              {t.extend}
-            </button>
-          </div>
+          {canEditPlayers && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onEdit(player)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>{t.editPlayer}</span>
+              </button>
+              <button
+                onClick={() => onQuickExtend(player)}
+                className="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors"
+              >
+                {t.extend}
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

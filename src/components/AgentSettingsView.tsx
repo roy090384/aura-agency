@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { AgentProfile, Player, Language } from '../types/player';
+import {
+  AgentProfile,
+  Player,
+  Language,
+  TeamMemberRule,
+  TeamUserRole,
+  buildTeamMemberPreset,
+  AGENCY_OWNER_EMAIL
+} from '../types/player';
 import { TRANSLATIONS } from '../translations/translations';
 import { findAgentProfile } from '../data/defaultAgents';
 import {
@@ -10,7 +18,11 @@ import {
   CheckCircle2,
   Users,
   ShieldCheck,
-  Calendar
+  Calendar,
+  KeyRound,
+  Plus,
+  Trash2,
+  Lock
 } from 'lucide-react';
 
 interface AgentSettingsViewProps {
@@ -21,6 +33,11 @@ interface AgentSettingsViewProps {
   language: Language;
   nextTransferWindowDate?: string;
   onChangeNextTransferWindowDate?: (date: string) => void;
+  isOwner?: boolean;
+  ownerUid?: string;
+  teamMembers?: TeamMemberRule[];
+  onSaveTeamMember?: (member: TeamMemberRule) => Promise<void> | void;
+  onDeleteTeamMember?: (memberUid: string) => Promise<void> | void;
 }
 
 export const AgentSettingsView: React.FC<AgentSettingsViewProps> = ({
@@ -30,7 +47,12 @@ export const AgentSettingsView: React.FC<AgentSettingsViewProps> = ({
   malePlayers,
   language,
   nextTransferWindowDate = '',
-  onChangeNextTransferWindowDate
+  onChangeNextTransferWindowDate,
+  isOwner = true,
+  ownerUid = '',
+  teamMembers = [],
+  onSaveTeamMember,
+  onDeleteTeamMember
 }) => {
   const t = TRANSLATIONS[language];
   const isHe = language === 'he';
@@ -38,6 +60,18 @@ export const AgentSettingsView: React.FC<AgentSettingsViewProps> = ({
   const [draftAgents, setDraftAgents] = useState<AgentProfile[]>(agents);
   const [hasChanges, setHasChanges] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+
+  // Owner-only team access manager state
+  const [draftMembers, setDraftMembers] = useState<TeamMemberRule[]>(teamMembers);
+  const [newMemberUid, setNewMemberUid] = useState('');
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<TeamUserRole>('regular');
+  const [savedMemberUid, setSavedMemberUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraftMembers(teamMembers);
+  }, [teamMembers]);
 
   useEffect(() => {
     setDraftAgents(agents);
@@ -264,13 +298,298 @@ export const AgentSettingsView: React.FC<AgentSettingsViewProps> = ({
 
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white shadow-xs transition-colors"
+            disabled={!isOwner}
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
             <span>{isHe ? 'שמור הגדרות סוכנים' : 'Save Agent Settings'}</span>
           </button>
         </div>
       </form>
+
+      {/* Owner-Only CRM User Access & Role Rules */}
+      {isOwner ? (
+        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-gold-100 dark:bg-gold-950/60 text-gold-700 dark:text-gold-400 shrink-0">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                    {isHe ? 'ניהול גישת משתמשים והרשאות CRM' : 'CRM User Access & Role Rules'}
+                  </h2>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-gold-100 dark:bg-gold-950/60 text-gold-800 dark:text-gold-300 border border-gold-300/70 dark:border-gold-700/60">
+                    <Lock className="w-3 h-3" />
+                    <span>{isHe ? 'בעלים בלבד' : 'Owner Only'}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {isHe
+                    ? `רק בעל המערכת (${AGENCY_OWNER_EMAIL}) יכול לערוך הרשאות אלו. כל החוקים נאכפים ישירות ב-Firestore.`
+                    : `Only the agency owner (${AGENCY_OWNER_EMAIL}) can manage these rules. Permissions are enforced both in UI and Firestore security rules.`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {!ownerUid ? (
+              <div className="rounded-xl border border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/20 p-4 text-xs text-amber-800 dark:text-amber-300">
+                {isHe
+                  ? `התחבר עם חשבון ה-Google של הבעלים (${AGENCY_OWNER_EMAIL}) כדי לנהל ולסנכרן את הרשאות המשתמשים מול Firebase.`
+                  : `Sign in with the owner Google account (${AGENCY_OWNER_EMAIL}) to load and save user rules to Firebase.`}
+              </div>
+            ) : (
+              <>
+                {draftMembers.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-4 text-xs text-slate-500 dark:text-slate-400 text-center">
+                    {isHe ? 'לא הוגדרו משתמשים נוספים עדיין.' : 'No additional team users configured yet.'}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {draftMembers.map(member => {
+                      const updateMemberDraft = (patch: Partial<TeamMemberRule>) => {
+                        setDraftMembers(prev =>
+                          prev.map(m => (m.uid === member.uid ? { ...m, ...patch } : m))
+                        );
+                      };
+
+                      const applyRolePreset = (role: TeamUserRole) => {
+                        const preset = buildTeamMemberPreset(
+                          member.uid,
+                          ownerUid,
+                          role,
+                          member.displayName,
+                          member.email || ''
+                        );
+                        updateMemberDraft({
+                          role,
+                          canViewPlayers: preset.canViewPlayers,
+                          canCreatePlayers: preset.canCreatePlayers,
+                          canEditPlayers: preset.canEditPlayers,
+                          canDeletePlayers: preset.canDeletePlayers,
+                          canAccessScouting: preset.canAccessScouting,
+                          canEditTracker: preset.canEditTracker
+                        });
+                      };
+
+                      const permissionSwitches: Array<{
+                        key: keyof Pick<
+                          TeamMemberRule,
+                          | 'canViewPlayers'
+                          | 'canCreatePlayers'
+                          | 'canEditPlayers'
+                          | 'canDeletePlayers'
+                          | 'canAccessScouting'
+                          | 'canEditTracker'
+                        >;
+                        labelEn: string;
+                        labelHe: string;
+                      }> = [
+                        { key: 'canViewPlayers', labelEn: 'View Players', labelHe: 'צפייה בשחקנים' },
+                        { key: 'canCreatePlayers', labelEn: 'Create Players', labelHe: 'הוספת שחקנים' },
+                        { key: 'canEditPlayers', labelEn: 'Edit Players', labelHe: 'עריכת שחקנים' },
+                        { key: 'canDeletePlayers', labelEn: 'Delete Players', labelHe: 'מחיקת שחקנים' },
+                        { key: 'canAccessScouting', labelEn: 'Scouting (In Talk)', labelHe: 'סקאוטינג (במו"מ)' },
+                        { key: 'canEditTracker', labelEn: 'Player Tracker', labelHe: 'מעקב דקות ונתונים' }
+                      ];
+
+                      return (
+                        <div
+                          key={member.uid}
+                          className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 p-4 space-y-3"
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 flex-1">
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                                  {isHe ? 'שם תצוגה' : 'Display Name'}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={member.displayName}
+                                  onChange={e => updateMemberDraft({ displayName: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                                  {isHe ? 'אימייל (לתיעוד)' : 'Email Note'}
+                                </label>
+                                <input
+                                  type="email"
+                                  dir="ltr"
+                                  placeholder="user@agency.com"
+                                  value={member.email || ''}
+                                  onChange={e => updateMemberDraft({ email: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                                  {isHe ? 'תבנית תפקיד' : 'Role Preset'}
+                                </label>
+                                <select
+                                  value={member.role}
+                                  onChange={e => applyRolePreset(e.target.value as TeamUserRole)}
+                                  className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                >
+                                  <option value="regular">
+                                    {isHe ? 'משתמש רגיל (צפייה + יצירה)' : 'Regular User (View & Create)'}
+                                  </option>
+                                  <option value="manager">
+                                    {isHe ? 'מנהל (צפייה + יצירה + עריכה)' : 'Manager (View, Create, Edit & Scouting)'}
+                                  </option>
+                                  <option value="viewer">
+                                    {isHe ? 'צופה בלבד (קריאה בלבד)' : 'Viewer (Read Only)'}
+                                  </option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={member.active}
+                                  onChange={e => updateMemberDraft({ active: e.target.checked })}
+                                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <span className={member.active ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                                  {member.active ? (isHe ? 'פעיל' : 'Active') : (isHe ? 'מושעה' : 'Suspended')}
+                                </span>
+                              </label>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!onSaveTeamMember) return;
+                                  await onSaveTeamMember(member);
+                                  setSavedMemberUid(member.uid);
+                                  setTimeout(() => setSavedMemberUid(null), 2500);
+                                }}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                                <span>
+                                  {savedMemberUid === member.uid
+                                    ? (isHe ? 'נשמר!' : 'Saved!')
+                                    : (isHe ? 'שמור' : 'Save')}
+                                </span>
+                              </button>
+
+                              {onDeleteTeamMember && (
+                                <button
+                                  type="button"
+                                  title={isHe ? 'הסר גישה' : 'Revoke Access'}
+                                  onClick={() => onDeleteTeamMember(member.uid)}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-800">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {permissionSwitches.map(sw => (
+                                <label
+                                  key={sw.key}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(member[sw.key])}
+                                    onChange={e => updateMemberDraft({ [sw.key]: e.target.checked })}
+                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  <span>{isHe ? sw.labelHe : sw.labelEn}</span>
+                                </label>
+                              ))}
+                            </div>
+
+                            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 select-all" dir="ltr">
+                              UID: {member.uid}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Add Another Firebase User UID */}
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    {isHe ? 'הוסף משתמש מאושר מ-Firebase (לפי UID)' : 'Add Approved Firebase User (by User UID)'}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                    <input
+                      type="text"
+                      dir="ltr"
+                      value={newMemberUid}
+                      onChange={e => setNewMemberUid(e.target.value)}
+                      placeholder="Firebase User UID"
+                      className="lg:col-span-2 px-3 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                    <input
+                      type="text"
+                      value={newMemberName}
+                      onChange={e => setNewMemberName(e.target.value)}
+                      placeholder={isHe ? 'שם המשתמש' : 'Display Name'}
+                      className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                    <select
+                      value={newMemberRole}
+                      onChange={e => setNewMemberRole(e.target.value as TeamUserRole)}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-white"
+                    >
+                      <option value="regular">{isHe ? 'משתמש רגיל' : 'Regular User'}</option>
+                      <option value="manager">{isHe ? 'מנהל' : 'Manager'}</option>
+                      <option value="viewer">{isHe ? 'צופה' : 'Viewer'}</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!newMemberUid.trim() || !onSaveTeamMember}
+                      onClick={async () => {
+                        if (!newMemberUid.trim() || !onSaveTeamMember) return;
+                        const uid = newMemberUid.trim();
+                        const preset = buildTeamMemberPreset(
+                          uid,
+                          ownerUid,
+                          newMemberRole,
+                          newMemberName.trim() || 'Team User',
+                          newMemberEmail.trim()
+                        );
+                        await onSaveTeamMember(preset);
+                        setNewMemberUid('');
+                        setNewMemberName('');
+                        setNewMemberEmail('');
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gold-600 hover:bg-gold-700 text-white text-xs font-bold transition-colors disabled:opacity-45"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{isHe ? 'הוסף משתמש' : 'Add User'}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+          <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+          <span>
+            {isHe
+              ? 'הגדרות סוכנים וניהול הרשאות משתמשים זמינים לעריכה עבור בעל המערכת בלבד.'
+              : 'Agent settings and CRM user permission rules are restricted to the agency owner.'}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { TalkProspect, ProspectScope, TalkStage, PlayerPosition, YouthCategory, Language, Currency } from '../types/player';
-import { TRANSLATIONS, getYouthBadgeColor } from '../translations/translations';
-import { X, Video, Globe, MapPin, Sparkles, Plus, Tag, UserCheck } from 'lucide-react';
+import { TalkProspect, ProspectScope, TalkStage, PlayerPosition, YouthCategory, Language, Currency, PlayerGender, AgentProfile } from '../types/player';
+import { POSITION_TRANSLATIONS, MALE_POSITION_TRANSLATIONS, getYouthBadgeColor } from '../translations/translations';
+import { X, Video, Globe, MapPin, Tag, UserCheck, Users } from 'lucide-react';
 import { NationalitySelect } from './NationalitySelect';
+import { WomenClubSelect } from './WomenClubSelect';
+import { MaleClubSelect } from './MaleClubSelect';
+import { findWomenClubByString } from '../data/womenClubs';
+import { findMaleClubByString } from '../data/maleClubs';
+import { DEFAULT_AGENTS } from '../data/defaultAgents';
 
 interface ProspectModalProps {
   isOpen: boolean;
@@ -11,6 +16,7 @@ interface ProspectModalProps {
   prospectToEdit?: TalkProspect | null;
   language?: Language;
   defaultCurrency?: Currency;
+  agents?: AgentProfile[];
 }
 
 const POSITIONS: PlayerPosition[] = [
@@ -35,20 +41,23 @@ const STAGES: TalkStage[] = [
   'Signed'
 ];
 
-const YOUTH_OPTIONS: YouthCategory[] = ['Senior', 'U19', 'U17', 'U15'];
+const FEMALE_YOUTH_OPTIONS: YouthCategory[] = ['Senior', 'U19', 'U17', 'U15'];
+const MALE_YOUTH_OPTIONS: YouthCategory[] = ['Senior', 'U19', 'U17', 'U16', 'U15', 'U14'];
 
 export const ProspectModal: React.FC<ProspectModalProps> = ({
   isOpen,
   onClose,
   onSave,
   prospectToEdit,
-  language = 'en'
+  language = 'en',
+  agents = DEFAULT_AGENTS
 }) => {
+  const [gender, setGender] = useState<PlayerGender>('Female');
   const [name, setName] = useState('');
   const [age, setAge] = useState<number>(18);
   const [birthDate, setBirthDate] = useState('2008-01-01');
-  const [nationality, setNationality] = useState('England');
-  const [countryCode, setCountryCode] = useState('GB');
+  const [nationality, setNationality] = useState('Israel');
+  const [countryCode, setCountryCode] = useState('IL');
   const [currentClub, setCurrentClub] = useState('');
   const [league, setLeague] = useState('');
   const [position, setPosition] = useState<PlayerPosition>('Central Midfield (CM)');
@@ -56,7 +65,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
   const [scope, setScope] = useState<ProspectScope>('Local');
   const [talkStage, setTalkStage] = useState<TalkStage>('Initial Contact');
   const [priority, setPriority] = useState<'High' | 'Medium' | 'Low'>('High');
-  const [assignedAgent, setAssignedAgent] = useState('Marcus Sterling (Senior Agent)');
+  const [assignedAgent, setAssignedAgent] = useState(agents[0]?.name || 'Roy Shpitalnik');
 
   // Video info (Optional)
   const [videoUrl, setVideoUrl] = useState('');
@@ -74,6 +83,8 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
 
   useEffect(() => {
     if (prospectToEdit) {
+      const editGender: PlayerGender = prospectToEdit.gender === 'Male' ? 'Male' : 'Female';
+      setGender(editGender);
       setName(prospectToEdit.name);
       setAge(prospectToEdit.age);
       setBirthDate(prospectToEdit.birthDate);
@@ -82,7 +93,20 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       setCurrentClub(prospectToEdit.currentClub);
       setLeague(prospectToEdit.league);
       setPosition(prospectToEdit.position);
-      setYouthCategory(prospectToEdit.youthCategory || (prospectToEdit.age <= 15 ? 'U15' : prospectToEdit.age <= 17 ? 'U17' : prospectToEdit.age <= 19 ? 'U19' : 'Senior'));
+      setYouthCategory(
+        prospectToEdit.youthCategory ||
+          (prospectToEdit.age <= 14 && editGender === 'Male'
+            ? 'U14'
+            : prospectToEdit.age <= 15
+            ? 'U15'
+            : prospectToEdit.age === 16 && editGender === 'Male'
+            ? 'U16'
+            : prospectToEdit.age <= 17
+            ? 'U17'
+            : prospectToEdit.age <= 19
+            ? 'U19'
+            : 'Senior')
+      );
       setScope(prospectToEdit.scope);
       setTalkStage(prospectToEdit.talkStage);
       setPriority(prospectToEdit.priority);
@@ -99,11 +123,12 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       setInternationalCaps(prospectToEdit.scoutingReport?.internationalCaps || 0);
       setGeneralNotes(prospectToEdit.generalNotes || '');
     } else {
+      setGender('Female');
       setName('');
       setAge(18);
       setBirthDate('2008-01-01');
-      setNationality('England');
-      setCountryCode('GB');
+      setNationality('Israel');
+      setCountryCode('IL');
       setCurrentClub('');
       setLeague('');
       setPosition('Central Midfield (CM)');
@@ -111,7 +136,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       setScope('Local');
       setTalkStage('Initial Contact');
       setPriority('High');
-      setAssignedAgent('Marcus Sterling (Senior Agent)');
+      setAssignedAgent(agents[0]?.name || 'Roy Shpitalnik');
       setVideoUrl('');
       setVideoTitle('');
       setVideoDescription('');
@@ -123,14 +148,51 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
       setInternationalCaps(0);
       setGeneralNotes('');
     }
-  }, [prospectToEdit, isOpen]);
+  }, [prospectToEdit, isOpen, agents]);
 
   if (!isOpen) return null;
+
+  const isMale = gender === 'Male';
+  const youthOptions = isMale ? MALE_YOUTH_OPTIONS : FEMALE_YOUTH_OPTIONS;
+  const posTranslations = isMale ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
+
+  const handleGenderChange = (nextGender: PlayerGender) => {
+    if (nextGender === gender) return;
+    setGender(nextGender);
+
+    if (nextGender === 'Male') {
+      // Clear female-only club selection so the Male clubs dropdown updates cleanly
+      if (currentClub && findWomenClubByString(currentClub) && !findMaleClubByString(currentClub)) {
+        setCurrentClub('');
+      }
+      if (
+        !league ||
+        league.includes("Women's") ||
+        league.includes('לנשים')
+      ) {
+        setLeague(language === 'he' ? 'ליגת העל לנוער' : 'Israeli Youth Premier League');
+      }
+    } else {
+      // Clear male-only club selection when switching back to Female
+      if (currentClub && findMaleClubByString(currentClub) && !findWomenClubByString(currentClub)) {
+        setCurrentClub('');
+      }
+      if (youthCategory === 'U14') setYouthCategory('U15');
+      else if (youthCategory === 'U16') setYouthCategory('U17');
+      if (
+        !league ||
+        league.includes('Youth') ||
+        league.includes('לנוער')
+      ) {
+        setLeague(language === 'he' ? 'ליגת העל לנשים' : "Israeli Women's Premier League");
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !currentClub.trim()) {
-      alert('Please fill in candidate name and current club.');
+      alert(language === 'he' ? 'נא למלא שם שחקן/ית וקבוצה נוכחית.' : 'Please fill in candidate name and current club.');
       return;
     }
 
@@ -148,19 +210,20 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
     const savedProspect: TalkProspect = {
       id: prospectToEdit ? prospectToEdit.id : `pros-${Date.now()}`,
       name: name.trim(),
+      gender,
       photoUrl: prospectToEdit?.photoUrl || '',
       age: Number(age) || 20,
       birthDate,
-      nationality: nationality.trim() || 'England',
-      countryCode: countryCode.trim() || 'GB',
+      nationality: nationality.trim() || 'Israel',
+      countryCode: countryCode.trim() || 'IL',
       currentClub: currentClub.trim(),
-      league: league.trim() || 'Top Tier',
+      league: league.trim() || (isMale ? 'Israeli Youth Premier League' : 'Top Tier'),
       position,
       youthCategory,
       scope,
       talkStage,
       priority,
-      assignedAgent: assignedAgent.trim() || 'Marcus Sterling',
+      assignedAgent: assignedAgent.trim() || agents[0]?.name || 'Roy Shpitalnik',
       videoUrl: trimmedVideo,
       videoTitle: videoTitle.trim() || (trimmedVideo ? `${name.trim()} - Video Highlights` : ''),
       videoDescription: videoDescription.trim(),
@@ -200,18 +263,28 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                {prospectToEdit 
-                  ? (language === 'he' ? 'עריכת מועמדת לייצוג בסוכנות' : 'Edit Agency Candidate Dossier')
-                  : (language === 'he' ? 'הוספת מועמדת חדשה לייצוג בסוכנות' : 'Add New Candidate for Agency Representation')}
+                {prospectToEdit
+                  ? isMale
+                    ? language === 'he' ? 'עריכת מועמד לייצוג בסוכנות' : 'Edit Male Candidate Dossier'
+                    : language === 'he' ? 'עריכת מועמדת לייצוג בסוכנות' : 'Edit Female Candidate Dossier'
+                  : isMale
+                  ? language === 'he' ? 'הוספת מועמד חדש לייצוג בסוכנות' : 'Add New Male Candidate for Agency'
+                  : language === 'he' ? 'הוספת מועמדת חדשה לייצוג בסוכנות' : 'Add New Female Candidate for Agency'}
               </h2>
-              <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-semibold">
-                {language === 'he' ? 'מועמדת לייצוג' : 'Agency Candidate'}
+              <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                isMale
+                  ? 'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300'
+                  : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+              }`}>
+                {isMale
+                  ? language === 'he' ? 'מועמד (גברים / נוער)' : 'Male Candidate'
+                  : language === 'he' ? 'מועמדת (נשים)' : 'Female Candidate'}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {language === 'he'
-                ? 'ניהול מועמדות לייצוג בסוכנות BRIT SPORT GROUP Management, סקאוטינג, סרטוני ביצועים אופציונליים ושלבי החתמה בסוכנות.'
-                : 'Track prospective representation candidates for BRIT SPORT GROUP Management, scouting reports, optional video reels, and agency signing stages.'}
+                ? 'ניהול מועמדים ומועמדות לייצוג בסוכנות BRIT SPORT GROUP Management, סקאוטינג, סרטוני ביצועים ושלבי החתמה.'
+                : 'Track prospective male & female representation candidates for BRIT SPORT GROUP Management, scouting reports, optional video reels, and agency signing stages.'}
             </p>
           </div>
           <button
@@ -225,7 +298,48 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
-          
+
+          {/* Player Gender Selector: Female vs Male */}
+          <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{language === 'he' ? 'מגזר / סגל שחקן (נשים / גברים)' : 'Player Roster Category (Female / Male)'}</span>
+              </span>
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                {language === 'he'
+                  ? 'בחירת גברים / נוער תעדכן אוטומטית את רשימת הקבוצות למועדוני גברים ונוער'
+                  : 'Choosing Male automatically updates the club selector to the Men / Youth clubs list'}
+              </span>
+            </div>
+
+            <div className="flex items-center p-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleGenderChange('Female')}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  !isMale
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {language === 'he' ? 'שחקנית (נשים)' : 'Female Player'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleGenderChange('Male')}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  isMale
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {language === 'he' ? 'שחקן (גברים / נוער)' : 'Male Player'}
+              </button>
+            </div>
+          </div>
+
           {/* Scope Selector: Local vs International */}
           <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -239,7 +353,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center p-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center p-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
               <button
                 type="button"
                 onClick={() => setScope('Local')}
@@ -250,7 +364,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 }`}
               >
                 <MapPin className="w-3.5 h-3.5" />
-                <span>{language === 'he' ? 'מועמדת מקומית' : 'Local Candidate'}</span>
+                <span>{language === 'he' ? (isMale ? 'מועמד מקומי' : 'מועמדת מקומית') : 'Local Candidate'}</span>
               </button>
 
               <button
@@ -263,25 +377,27 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 }`}
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>{language === 'he' ? 'מועמדת בינלאומית' : 'International Candidate'}</span>
+                <span>{language === 'he' ? (isMale ? 'מועמד בינלאומי' : 'מועמדת בינלאומית') : 'International Candidate'}</span>
               </button>
             </div>
           </div>
 
-          {/* Age Tier Selector: Senior vs U19 vs U17 vs U15 */}
+          {/* Age Tier Selector */}
           <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Age Category (Senior / U19 / U17 / U15) *</span>
+                <span>
+                  Age Category ({isMale ? 'Senior / U19 / U17 / U16 / U15 / U14' : 'Senior / U19 / U17 / U15'}) *
+                </span>
               </label>
               <span className="text-[11px] text-slate-500">
                 Mark youth prospects for academy pathway
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-2">
-              {YOUTH_OPTIONS.map(cat => (
+            <div className={`grid gap-2 ${isMale ? 'grid-cols-3 sm:grid-cols-6' : 'grid-cols-4'}`}>
+              {youthOptions.map(cat => (
                 <button
                   key={cat}
                   type="button"
@@ -307,12 +423,12 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Full Candidate Name *
+                  {language === 'he' ? (isMale ? 'שם מלא של המועמד *' : 'שם מלא של המועמדת *') : 'Full Candidate Name *'}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Yuki Takahashi"
+                  placeholder={isMale ? 'e.g. Liel Abada / Yonatan Cohen' : 'e.g. Yuki Takahashi'}
                   value={name}
                   onChange={e => setName(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -320,24 +436,55 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Current Club *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Urawa Reds, Brighton Academy"
-                  value={currentClub}
-                  onChange={e => setCurrentClub(e.target.value)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
-                />
+                {isMale ? (
+                  <MaleClubSelect
+                    key="prospect-male-club-select"
+                    value={currentClub}
+                    onChange={(selectedClub, suggestedLeague) => {
+                      setCurrentClub(selectedClub);
+                      if (suggestedLeague !== undefined) {
+                        setLeague(suggestedLeague);
+                      }
+                    }}
+                    language={language}
+                    label={language === 'he' ? 'קבוצה / מחלקת נוער נוכחית (גברים)' : 'Current Club (Male / Youth)'}
+                    required
+                  />
+                ) : (
+                  <WomenClubSelect
+                    key="prospect-women-club-select"
+                    value={currentClub}
+                    onChange={(selectedClub, suggestedLeague) => {
+                      setCurrentClub(selectedClub);
+                      if (suggestedLeague !== undefined) {
+                        setLeague(suggestedLeague);
+                      }
+                    }}
+                    language={language}
+                    label={language === 'he' ? 'קבוצה נוכחית (נשים)' : 'Current Club (Female)'}
+                    required
+                  />
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Playing Position *
+                  {language === 'he' ? 'ליגה' : 'League'}
+                </label>
+                <input
+                  type="text"
+                  placeholder={isMale ? 'e.g. Israeli Youth Premier League' : "e.g. Israeli Women's Premier League"}
+                  value={league}
+                  onChange={e => setLeague(e.target.value)}
+                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  {language === 'he' ? 'עמדה *' : 'Playing Position *'}
                 </label>
                 <select
                   value={position}
@@ -345,24 +492,28 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                   className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
                 >
                   {POSITIONS.map(pos => (
-                    <option key={pos} value={pos}>{pos}</option>
+                    <option key={pos} value={pos}>
+                      {language === 'he' ? (posTranslations.he[pos] || pos) : pos}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Age
+                  {language === 'he' ? 'גיל' : 'Age'}
                 </label>
                 <input
                   type="number"
-                  min="13"
+                  min="12"
                   max="40"
                   value={age}
                   onChange={e => {
                     const val = Number(e.target.value);
                     setAge(val);
-                    if (val <= 15) setYouthCategory('U15');
+                    if (isMale && val <= 14) setYouthCategory('U14');
+                    else if (val <= 15) setYouthCategory('U15');
+                    else if (isMale && val === 16) setYouthCategory('U16');
                     else if (val <= 17) setYouthCategory('U17');
                     else if (val <= 19) setYouthCategory('U19');
                   }}
@@ -379,7 +530,7 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                     setCountryCode(selectedCode);
                   }}
                   language={language}
-                  label="Nationality"
+                  label={language === 'he' ? 'לאום' : 'Nationality'}
                 />
               </div>
             </div>
@@ -397,7 +548,9 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                   {STAGES.map(st => (
                     <option key={st} value={st}>
                       {st === 'Signed'
-                        ? (language === 'he' ? 'נחתמה בסוכנות (העברה אוטומטית לסגל)' : 'Signed in Agency (Move to Roster)')
+                        ? (language === 'he'
+                            ? isMale ? 'נחתם בסוכנות (העברה לסגל בנים)' : 'נחתמה בסוכנות (העברה לסגל נשים)'
+                            : isMale ? 'Signed in Agency (Move to Male Roster)' : 'Signed in Agency (Move to Female Roster)')
                         : st}
                     </option>
                   ))}
@@ -425,10 +578,16 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  list="prospect-assigned-agent-list"
                   value={assignedAgent}
                   onChange={e => setAssignedAgent(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
+                <datalist id="prospect-assigned-agent-list">
+                  {agents.map(ag => (
+                    <option key={ag.id} value={ag.name} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
@@ -437,8 +596,12 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
                 <UserCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <span>
                   {language === 'he'
-                    ? 'שמירה במצב "נחתמה בסוכנות" תעביר את השחקנית אוטומטית לסגל השחקניות הרשמי ותסיר אותה מרשימת המועמדות.'
-                    : 'Saving as "Signed in Agency" will automatically move this player to the Female Roster and remove her from In Talk With.'}
+                    ? isMale
+                      ? 'שמירה במצב "נחתם בסוכנות" תעביר את השחקן אוטומטית לסגל בנים ונוער ותסיר אותו מרשימת המועמדים.'
+                      : 'שמירה במצב "נחתמה בסוכנות" תעביר את השחקנית אוטומטית לסגל השחקניות הרשמי ותסיר אותה מרשימת המועמדות.'
+                    : isMale
+                      ? 'Saving as "Signed in Agency" will automatically move this player to the Male Roster and remove him from In Talk With.'
+                      : 'Saving as "Signed in Agency" will automatically move this player to the Female Roster and remove her from In Talk With.'}
                 </span>
               </div>
             )}
@@ -622,10 +785,12 @@ export const ProspectModal: React.FC<ProspectModalProps> = ({
               className="px-5 py-2 text-xs sm:text-sm font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors"
             >
               {talkStage === 'Signed'
-                ? (language === 'he' ? 'נחתמה בסוכנות והעבר לסגל' : 'Sign in Agency & Move to Roster')
+                ? (language === 'he'
+                    ? isMale ? 'חתום בסוכנות והעבר לסגל בנים' : 'נחתמה בסוכנות והעבר לסגל'
+                    : isMale ? 'Sign & Move to Male Roster' : 'Sign & Move to Female Roster')
                 : prospectToEdit
                   ? (language === 'he' ? 'שמור שינויים' : 'Save Changes')
-                  : (language === 'he' ? 'שמור מועמדת' : 'Save Candidate')}
+                  : (language === 'he' ? (isMale ? 'שמור מועמד' : 'שמור מועמדת') : 'Save Candidate')}
             </button>
           </div>
 

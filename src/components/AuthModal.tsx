@@ -33,7 +33,8 @@ interface AuthModalProps {
   } | null;
   onLoginWithGoogle: () => Promise<void>;
   onLoginWithEmail: (email: string, pass: string) => Promise<void>;
-  onLoginAnonymously: () => Promise<void>;
+  onResetPassword?: (email: string) => Promise<void>;
+  onLoginAnonymously?: () => Promise<void>;
   isSyncing: boolean;
 }
 
@@ -44,7 +45,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   diagnostic,
   onLoginWithGoogle,
   onLoginWithEmail,
-  onLoginAnonymously,
+  onResetPassword,
   isSyncing
 }) => {
   if (!isOpen) return null;
@@ -53,11 +54,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const t = TRANSLATIONS[language];
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'aura-agency.vercel.app';
 
-  const [activeTab, setActiveTab] = useState<'google' | 'email' | 'agent'>('google');
-  const [email, setEmail] = useState('roy090384@gmail.com');
+  const [activeTab, setActiveTab] = useState<'google' | 'email'>('email');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [copied, setCopied] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [localSuccess, setLocalSuccess] = useState<string | null>(null);
 
   const handleCopyDomain = () => {
     navigator.clipboard.writeText(currentHostname);
@@ -67,36 +69,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleSubmitEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       setLocalError(isHe ? 'נא להזין אימייל וסיסמה' : 'Please provide both email and password');
       return;
     }
     setLocalError(null);
+    setLocalSuccess(null);
     try {
-      await onLoginWithEmail(email, password);
+      await onLoginWithEmail(email.trim(), password);
       onClose();
     } catch (err: any) {
-      setLocalError(err?.message || (isHe ? 'שגיאה בהתחברות' : 'Authentication failed'));
+      const code = err?.code || '';
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        setLocalError(isHe ? 'אימייל או סיסמה שגויים.' : 'Invalid email or password.');
+      } else if (code === 'auth/operation-not-allowed') {
+        setLocalError(
+          isHe
+            ? 'ספק Email/Password עדיין אינו מופעל ב-Firebase Console.'
+            : 'Email/Password sign-in must be enabled in Firebase Console → Authentication → Sign-in method.'
+        );
+      } else {
+        setLocalError(err?.message || (isHe ? 'שגיאה בהתחברות' : 'Authentication failed'));
+      }
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setLocalError(isHe ? 'הזן אימייל תחילה כדי לקבל קישור לאיפוס סיסמה' : 'Enter your email address first to send a password reset link');
+      return;
+    }
+    if (!onResetPassword) return;
+    setLocalError(null);
+    setLocalSuccess(null);
+    try {
+      await onResetPassword(email.trim());
+      setLocalSuccess(
+        isHe
+          ? 'נשלח מייל לאיפוס סיסמה (בדוק גם בתיקיית הספאם).'
+          : 'Password reset email sent. Check your inbox.'
+      );
+    } catch (err: any) {
+      setLocalError(err?.message || (isHe ? 'שגיאה בשליחת מייל איפוס' : 'Failed to send reset email'));
     }
   };
 
   const handleGoogleClick = async () => {
     setLocalError(null);
+    setLocalSuccess(null);
     try {
       await onLoginWithGoogle();
       onClose();
     } catch (err: any) {
       // Diagnostic will update automatically in parent
-    }
-  };
-
-  const handleAgentClick = async () => {
-    setLocalError(null);
-    try {
-      await onLoginAnonymously();
-      onClose();
-    } catch (err: any) {
-      setLocalError(err?.message || (isHe ? 'שגיאה בהתחברות' : 'Anonymous login failed'));
     }
   };
 
@@ -200,18 +225,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           )}
 
           {/* Tab Selector */}
-          <div className="grid grid-cols-3 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold">
+          <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold">
             <button
-              onClick={() => setActiveTab('google')}
-              className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'google'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span>Google</span>
-            </button>
-            <button
+              type="button"
               onClick={() => setActiveTab('email')}
               className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'email'
@@ -220,18 +236,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               }`}
             >
               <Mail className="w-3.5 h-3.5" />
-              <span>{isHe ? 'אימייל וסיסמה' : 'Email'}</span>
+              <span>{isHe ? 'אימייל וסיסמה (צוות)' : 'Email & Password'}</span>
             </button>
             <button
-              onClick={() => setActiveTab('agent')}
+              type="button"
+              onClick={() => setActiveTab('google')}
               className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'agent'
+                activeTab === 'google'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{isHe ? 'חיבור מהיר' : '1-Click'}</span>
+              <span>{isHe ? 'Google (בעלים)' : 'Google (Owner)'}</span>
             </button>
           </div>
 
@@ -270,8 +286,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <form onSubmit={handleSubmitEmail} className="space-y-3 py-1">
               <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
                 {isHe
-                  ? '💡 חיבור באימייל פועל בכל דומיין ללא תלות באישור דומיין ב-Google OAuth.'
-                  : '💡 Direct email sign-in bypasses domain authorization checks and works on any custom domain.'}
+                  ? 'התחברו עם האימייל והסיסמה שאושרו על ידי מנהל המערכת כדי לצפות ולעבוד על נתוני הסוכנות המשותפים.'
+                  : 'Sign in with your approved email and password to access and collaborate on the shared agency CRM.'}
               </div>
 
               <div>
@@ -285,16 +301,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder="agent@aura-agency.com"
+                    placeholder="user@agency.com"
                     className={`w-full py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden ${isHe ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  {isHe ? 'סיסמה' : 'Password'}
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {isHe ? 'סיסמה' : 'Password'}
+                  </label>
+                  {onResetPassword && (
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
+                    >
+                      {isHe ? 'שכחתי סיסמה' : 'Forgot password?'}
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Lock className={`w-4 h-4 text-slate-400 absolute top-2.5 ${isHe ? 'right-3' : 'left-3'}`} />
                   <input
@@ -314,44 +341,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               )}
 
+              {localSuccess && (
+                <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  {localSuccess}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={isSyncing}
-                className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-2"
+                className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isSyncing ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 ) : (
                   <ShieldCheck className="w-3.5 h-3.5" />
                 )}
-                <span>{isHe ? 'התחבר / צור חשבון' : 'Sign In / Connect'}</span>
+                <span>{isHe ? 'התחבר עם אימייל וסיסמה' : 'Sign In'}</span>
               </button>
             </form>
-          )}
-
-          {/* TAB 3: 1-Click Agent Sync */}
-          {activeTab === 'agent' && (
-            <div className="space-y-3 py-2">
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                {isHe
-                  ? 'התחבר באופן מיידי ללא סיסמה. מתחבר מיידית למסד הנתונים בענן ומאפשר סנכרון שחקנים ונתונים באופן שקוף.'
-                  : 'Instantly connect with a secure agent session. Allows instant cloud sync with zero configuration.'}
-              </p>
-
-              <button
-                type="button"
-                onClick={handleAgentClick}
-                disabled={isSyncing}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-2"
-              >
-                {isSyncing ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5" />
-                )}
-                <span>{isHe ? 'התחבר ב-1-Click למסד הנתונים' : '1-Click Agent Session'}</span>
-              </button>
-            </div>
           )}
 
         </div>

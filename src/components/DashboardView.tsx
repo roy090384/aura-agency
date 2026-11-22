@@ -7,7 +7,8 @@ import {
   TrackedPlayer,
   Language,
   Currency,
-  NavigationTab
+  NavigationTab,
+  WorkspacePermissions
 } from '../types/player';
 import { DEFAULT_AGENTS, findAgentProfile } from '../data/defaultAgents';
 import {
@@ -45,6 +46,7 @@ import {
   getSavedFemaleCpiPct
 } from '../utils/trainingCompensation';
 import { formatCurrencyAmount } from '../utils/currency';
+import { NextMatchWindow } from './NextMatchWindow';
 
 type DivisionScope = 'all' | 'female' | 'male';
 
@@ -71,7 +73,20 @@ interface DashboardViewProps {
   language: Language;
   currency?: Currency;
   nextTransferWindowDate?: string;
+  watchedNextMatchKeys?: string[];
+  onChangeWatchedNextMatchKeys?: (keys: string[]) => void;
+  permissions?: WorkspacePermissions;
 }
+
+const FULL_PERMISSIONS: WorkspacePermissions = {
+  canViewPlayers: true,
+  canCreatePlayers: true,
+  canEditPlayers: true,
+  canDeletePlayers: true,
+  canAccessScouting: true,
+  canEditTracker: true,
+  isOwner: true
+};
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   players,
@@ -90,10 +105,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenAddPlayer,
   language,
   currency = 'EUR',
-  nextTransferWindowDate = getDefaultNextTransferWindowDate()
+  nextTransferWindowDate = getDefaultNextTransferWindowDate(),
+  watchedNextMatchKeys = [],
+  onChangeWatchedNextMatchKeys,
+  permissions
 }) => {
   const t = TRANSLATIONS[language];
   const isHe = language === 'he';
+  const perms = permissions || FULL_PERMISSIONS;
 
   const [scope, setScope] = useState<DivisionScope>('all');
 
@@ -350,16 +369,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Quick Actions */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => onNavigateTab('agent-settings')}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors whitespace-nowrap shrink-0"
-          >
-            <UserCheck className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
-            <span>{t.agentSettings}</span>
-          </button>
+          {perms.isOwner && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('agent-settings')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors whitespace-nowrap shrink-0"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
+              <span>{t.agentSettings}</span>
+            </button>
+          )}
 
-          {scope !== 'male' && (
+          {perms.canCreatePlayers && scope !== 'male' && (
             <button
               type="button"
               onClick={() => onOpenAddPlayer('female')}
@@ -370,7 +391,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           )}
 
-          {scope !== 'female' && (
+          {perms.canCreatePlayers && scope !== 'female' && (
             <button
               type="button"
               onClick={() => onOpenAddPlayer('male')}
@@ -570,6 +591,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Live Next Match Center (Selected Male & Female Players) */}
+      <NextMatchWindow
+        players={players}
+        malePlayers={malePlayers}
+        scope={scope}
+        watchedKeys={watchedNextMatchKeys}
+        onChangeWatchedKeys={keys => onChangeWatchedNextMatchKeys?.(keys)}
+        onSelectPlayer={onSelectPlayer}
+        language={language}
+      />
 
       {/* Compact Side-by-Side Priority Radar: Urgent Contracts (L) & Upcoming Birthdays (R) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

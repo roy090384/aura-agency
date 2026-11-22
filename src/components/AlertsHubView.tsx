@@ -17,6 +17,7 @@ interface AlertsHubViewProps {
   onQuickExtend: (player: Player, rosterType: 'female' | 'male') => void;
   onEditPlayer: (player: Player, rosterType: 'female' | 'male') => void;
   language: Language;
+  canEditPlayers?: boolean;
 }
 
 export const AlertsHubView: React.FC<AlertsHubViewProps> = ({
@@ -28,7 +29,8 @@ export const AlertsHubView: React.FC<AlertsHubViewProps> = ({
   onSelectPlayer,
   onQuickExtend,
   onEditPlayer,
-  language
+  language,
+  canEditPlayers = true
 }) => {
   const t = TRANSLATIONS[language];
   const isHe = language === 'he';
@@ -121,6 +123,7 @@ export const AlertsHubView: React.FC<AlertsHubViewProps> = ({
           onQuickExtend={onQuickExtend}
           onEditPlayer={onEditPlayer}
           language={language}
+          canEditPlayers={canEditPlayers}
         />
       ) : (
         <BirthdaysView

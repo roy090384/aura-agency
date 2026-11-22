@@ -64,6 +64,9 @@ interface PlayerListViewProps {
   agents?: AgentProfile[];
   nextTransferWindowDate?: string;
   onChangeNextTransferWindowDate?: (date: string) => void;
+  canCreatePlayers?: boolean;
+  canEditPlayers?: boolean;
+  canDeletePlayers?: boolean;
 }
 
 export const PlayerListView: React.FC<PlayerListViewProps> = ({
@@ -80,7 +83,10 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
   rosterType = 'female',
   agents = DEFAULT_AGENTS,
   nextTransferWindowDate = getDefaultNextTransferWindowDate(),
-  onChangeNextTransferWindowDate
+  onChangeNextTransferWindowDate,
+  canCreatePlayers = true,
+  canEditPlayers = true,
+  canDeletePlayers = true
 }) => {
   const t = TRANSLATIONS[language];
   const isMale = rosterType === 'male';
@@ -234,7 +240,7 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Easy Bulk Delete Button */}
-          {selectedIds.length > 0 && (
+          {canDeletePlayers && selectedIds.length > 0 && (
             <button
               onClick={() => onRequestDeleteMultiple(selectedIds)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors animate-in fade-in"
@@ -252,17 +258,19 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
             <span>{t.exportCsv}</span>
           </button>
 
-          <button
-            onClick={onOpenAddPlayer}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg text-white shadow-xs transition-colors ${
-              isMale
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-rose-600 hover:bg-rose-700'
-            }`}
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>{isMale ? t.addMalePlayer : t.addPlayer}</span>
-          </button>
+          {canCreatePlayers && (
+            <button
+              onClick={onOpenAddPlayer}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg text-white shadow-xs transition-colors ${
+                isMale
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-rose-600 hover:bg-rose-700'
+              }`}
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>{isMale ? t.addMalePlayer : t.addPlayer}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -489,15 +497,17 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
             <table className="w-full text-left rtl:text-right border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-3 w-8">
-                    <input 
-                      type="checkbox"
-                      checked={selectedIds.length > 0 && selectedIds.length === filteredPlayers.length}
-                      onChange={handleToggleSelectAll}
-                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                      title="Select all"
-                    />
-                  </th>
+                  {canDeletePlayers && (
+                    <th className="py-3 px-3 w-8">
+                      <input 
+                        type="checkbox"
+                        checked={selectedIds.length > 0 && selectedIds.length === filteredPlayers.length}
+                        onChange={handleToggleSelectAll}
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        title="Select all"
+                      />
+                    </th>
+                  )}
                   <th className="py-3 px-4">{t.thPlayer}</th>
                   <th className="py-3 px-3">{t.thCategory}</th>
                   <th className="py-3 px-4">{t.thClub}</th>
@@ -526,14 +536,16 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                       }`}
                     >
                       {/* Checkbox for easy selection */}
-                      <td className="py-3 px-3">
-                        <input 
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleSelectOne(player.id)}
-                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                        />
-                      </td>
+                      {canDeletePlayers && (
+                        <td className="py-3 px-3">
+                          <input 
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectOne(player.id)}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          />
+                        </td>
+                      )}
 
                       {/* Player info */}
                       <td className="py-3 px-4">
@@ -583,9 +595,10 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                       <td className="py-3 px-3 whitespace-nowrap">
                         <select
                           value={youthCat}
+                          disabled={!canEditPlayers}
                           onChange={e => onUpdateYouthCategory(player.id, e.target.value as YouthCategory)}
-                          className={`text-xs font-bold px-2 py-0.5 rounded-md border cursor-pointer focus:ring-1 focus:ring-emerald-500 ${getYouthBadgeColor(youthCat)}`}
-                          title={isMale ? 'Click to change age category (U14, U15, U16, U17, U19, Senior)' : 'Click to change age category (U15, U17, U19, Senior)'}
+                          className={`text-xs font-bold px-2 py-0.5 rounded-md border focus:ring-1 focus:ring-emerald-500 ${canEditPlayers ? 'cursor-pointer' : 'cursor-default opacity-80'} ${getYouthBadgeColor(youthCat)}`}
+                          title={isMale ? 'Age category (U14, U15, U16, U17, U19, Senior)' : 'Age category (U15, U17, U19, Senior)'}
                         >
                           <option value="Senior">Senior</option>
                           <option value="U19">U19</option>
@@ -750,30 +763,36 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                             <Eye className="w-4 h-4" />
                           </button>
 
-                          <button
-                            onClick={() => onQuickExtend(player)}
-                            className="px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-md transition-colors"
-                            title="Extend Contract"
-                          >
-                            {t.extend}
-                          </button>
+                          {canEditPlayers && (
+                            <>
+                              <button
+                                onClick={() => onQuickExtend(player)}
+                                className="px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-md transition-colors"
+                                title="Extend Contract"
+                              >
+                                {t.extend}
+                              </button>
 
-                          <button
-                            onClick={() => onEditPlayer(player)}
-                            className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
-                            title={t.editPlayer}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                              <button
+                                onClick={() => onEditPlayer(player)}
+                                className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                                title={t.editPlayer}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
 
                           {/* Easy 1-click Delete Button with dedicated confirmation modal */}
-                          <button
-                            onClick={() => onRequestDeletePlayer(player)}
-                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors"
-                            title={t.deletePlayer}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canDeletePlayers && (
+                            <button
+                              onClick={() => onRequestDeletePlayer(player)}
+                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors"
+                              title={t.deletePlayer}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
 
@@ -1003,29 +1022,35 @@ export const PlayerListView: React.FC<PlayerListViewProps> = ({
                     {t.viewDossier}
                   </button>
 
-                  <button
-                    onClick={() => onQuickExtend(player)}
-                    className="py-1.5 px-2.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
-                  >
-                    {t.extend}
-                  </button>
+                  {canEditPlayers && (
+                    <>
+                      <button
+                        onClick={() => onQuickExtend(player)}
+                        className="py-1.5 px-2.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+                      >
+                        {t.extend}
+                      </button>
 
-                  <button
-                    onClick={() => onEditPlayer(player)}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                    title={t.editPlayer}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
+                      <button
+                        onClick={() => onEditPlayer(player)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        title={t.editPlayer}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
 
                   {/* Easy Delete Icon */}
-                  <button
-                    onClick={() => onRequestDeletePlayer(player)}
-                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors"
-                    title={t.deletePlayer}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {canDeletePlayers && (
+                    <button
+                      onClick={() => onRequestDeletePlayer(player)}
+                      className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors"
+                      title={t.deletePlayer}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
               </div>

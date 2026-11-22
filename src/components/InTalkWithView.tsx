@@ -4,6 +4,7 @@ import { ForeignProspectsSubView } from './ForeignProspectsSubView';
 import { 
   TRANSLATIONS, 
   POSITION_TRANSLATIONS, 
+  MALE_POSITION_TRANSLATIONS,
   getYouthBadgeColor 
 } from '../translations/translations';
 import { 
@@ -75,6 +76,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
     onSubTabChange?.(tab);
   };
   const [scopeFilter, setScopeFilter] = useState<'ALL' | 'Local' | 'International'>('ALL');
+  const [genderFilter, setGenderFilter] = useState<'ALL' | 'Female' | 'Male'>('ALL');
   const [stageFilter, setStageFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [youthFilter, setYouthFilter] = useState<string>('ALL');
@@ -84,6 +86,8 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
   // Counts
   const localCount = prospects.filter(p => p.scope === 'Local').length;
   const intlCount = prospects.filter(p => p.scope === 'International').length;
+  const femaleCount = prospects.filter(p => (p.gender || 'Female') === 'Female').length;
+  const maleCount = prospects.filter(p => p.gender === 'Male').length;
 
   const stages: TalkStage[] = [
     'Initial Contact',
@@ -97,13 +101,15 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
   // Filtered prospects
   const filteredProspects = useMemo(() => {
     return prospects.filter(p => {
+      // Gender
+      if (genderFilter !== 'ALL' && (p.gender || 'Female') !== genderFilter) return false;
       // Scope
       if (scopeFilter !== 'ALL' && p.scope !== scopeFilter) return false;
       // Stage
       if (stageFilter !== 'ALL' && p.talkStage !== stageFilter) return false;
       // Priority
       if (priorityFilter !== 'ALL' && p.priority !== priorityFilter) return false;
-      // Youth Category (U15, U17, U19, Senior)
+      // Youth Category (U14, U15, U16, U17, U19, Senior)
       if (youthFilter !== 'ALL' && (p.youthCategory || 'Senior') !== youthFilter) return false;
       // Search
       const q = searchQuery.toLowerCase().trim();
@@ -118,7 +124,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
       }
       return true;
     });
-  }, [prospects, scopeFilter, stageFilter, priorityFilter, youthFilter, searchQuery]);
+  }, [prospects, genderFilter, scopeFilter, stageFilter, priorityFilter, youthFilter, searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -259,10 +265,46 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
           </div>
         </div>
 
-        {/* Secondary filters: Youth Category, Stage and Priority */}
+        {/* Secondary filters: Gender, Youth Category, Stage and Priority */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
           <div className="flex flex-wrap items-center gap-3">
-            
+            {/* Gender Filter Pill */}
+            <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+              <button
+                type="button"
+                onClick={() => setGenderFilter('ALL')}
+                className={`px-2 py-1 text-[11px] font-semibold rounded transition-all ${
+                  genderFilter === 'ALL'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {language === 'he' ? `הכל (${prospects.length})` : `All (${prospects.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setGenderFilter('Female')}
+                className={`px-2 py-1 text-[11px] font-semibold rounded transition-all ${
+                  genderFilter === 'Female'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {language === 'he' ? `נשים (${femaleCount})` : `Female (${femaleCount})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setGenderFilter('Male')}
+                className={`px-2 py-1 text-[11px] font-semibold rounded transition-all ${
+                  genderFilter === 'Male'
+                    ? 'bg-sky-600 text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {language === 'he' ? `גברים (${maleCount})` : `Male (${maleCount})`}
+              </button>
+            </div>
+
             {/* Youth Category Filter */}
             <div className="flex items-center gap-1.5">
               <span className="text-slate-500 font-medium">{t.youthCategory}:</span>
@@ -275,7 +317,9 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                 <option value="Senior">{t.senior}</option>
                 <option value="U19">{t.u19}</option>
                 <option value="U17">{t.u17}</option>
+                <option value="U16">{t.u16}</option>
                 <option value="U15">{t.u15}</option>
+                <option value="U14">{t.u14}</option>
               </select>
             </div>
 
@@ -342,6 +386,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
           </p>
           <button
             onClick={() => {
+              setGenderFilter('ALL');
               setScopeFilter('ALL');
               setStageFilter('ALL');
               setPriorityFilter('ALL');
@@ -377,6 +422,8 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                   {inThisStage.map(prospect => {
                     const youthCat = prospect.youthCategory || 'Senior';
                     const hasVideo = Boolean(prospect.videoUrl && prospect.videoUrl.trim().length > 0);
+                    const isMaleProspect = prospect.gender === 'Male';
+                    const posMap = isMaleProspect ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
 
                     return (
                       <div
@@ -394,6 +441,13 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                           </div>
                           
                           <div className="flex flex-col items-end gap-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              isMaleProspect
+                                ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                            }`}>
+                              {isMaleProspect ? (language === 'he' ? 'גברים' : 'Male') : (language === 'he' ? 'נשים' : 'Female')}
+                            </span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getYouthBadgeColor(youthCat)}`}>
                               {youthCat}
                             </span>
@@ -406,7 +460,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                         </div>
 
                         <div className="text-[11px] text-slate-600 dark:text-slate-400">
-                          {POSITION_TRANSLATIONS[language][prospect.position] || prospect.position} · {prospect.age} {language === 'he' ? 'שנים' : 'yrs'}
+                          {posMap[language][prospect.position] || prospect.position} · {prospect.age} {language === 'he' ? 'שנים' : 'yrs'}
                         </div>
 
                         {/* Video Button (Only if video attached) */}
@@ -444,7 +498,11 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                             <button
                               onClick={() => onSignProspectToRoster(prospect)}
                               className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold hover:underline"
-                              title={language === 'he' ? 'החתם בסוכנות והעבר לסגל השחקניות הרשמי' : 'Sign in Agency and move to Female Roster'}
+                              title={
+                                isMaleProspect
+                                  ? language === 'he' ? 'החתם בסוכנות והעבר לסגל בנים ונוער' : 'Sign in Agency and move to Male Roster'
+                                  : language === 'he' ? 'החתם בסוכנות והעבר לסגל השחקניות הרשמי' : 'Sign in Agency and move to Female Roster'
+                              }
                             >
                               {t.signToAgency} &rarr;
                             </button>
@@ -471,6 +529,8 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
             const latestConvo = prospect.conversationHistory[prospect.conversationHistory.length - 1];
             const youthCat = prospect.youthCategory || 'Senior';
             const hasVideo = Boolean(prospect.videoUrl && prospect.videoUrl.trim().length > 0);
+            const isMaleProspect = prospect.gender === 'Male';
+            const posMap = isMaleProspect ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
 
             return (
               <div
@@ -483,8 +543,10 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${
-                        prospect.scope === 'International' 
-                          ? 'bg-sky-50 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800' 
+                        isMaleProspect
+                          ? 'bg-sky-50 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800'
+                          : prospect.scope === 'International' 
+                          ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' 
                           : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                       }`}>
                         {prospect.nationality.slice(0, 2).toUpperCase()}
@@ -495,8 +557,16 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                           <h3 className="font-bold text-base text-slate-900 dark:text-white">
                             {prospect.name}
                           </h3>
+
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isMaleProspect
+                              ? 'bg-sky-100 text-sky-900 dark:bg-sky-900/60 dark:text-sky-200'
+                              : 'bg-rose-100 text-rose-900 dark:bg-rose-900/60 dark:text-rose-200'
+                          }`}>
+                            {isMaleProspect ? (language === 'he' ? 'גברים' : 'Male') : (language === 'he' ? 'נשים' : 'Female')}
+                          </span>
                           
-                          {/* Youth category tag: U15, U17, U19 */}
+                          {/* Youth category tag */}
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getYouthBadgeColor(youthCat)}`}>
                             {youthCat}
                           </span>
@@ -514,7 +584,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
                           {prospect.currentClub} · {prospect.league}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {POSITION_TRANSLATIONS[language][prospect.position] || prospect.position} · {prospect.age} {language === 'he' ? 'שנים' : 'yrs'} · {prospect.nationality}
+                          {posMap[language][prospect.position] || prospect.position} · {prospect.age} {language === 'he' ? 'שנים' : 'yrs'} · {prospect.nationality}
                         </div>
                       </div>
                     </div>

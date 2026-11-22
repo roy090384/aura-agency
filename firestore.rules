@@ -7,17 +7,75 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Helper functions
+    // Core Auth & Identity Helpers
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isNonAnonymous() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function isBootstrapOwner() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == 'roy090384@gmail.com';
+    }
+
+    function isWorkspaceOwner(userId) {
+      return isNonAnonymous() && request.auth.uid == userId;
+    }
+
+    function memberDocPath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/teamMembers/$(request.auth.uid);
+    }
+
+    function isActiveTeamMember(userId) {
+      return isNonAnonymous()
+        && exists(memberDocPath(userId))
+        && get(memberDocPath(userId)).data.active == true;
+    }
+
+    function memberPerms(userId) {
+      return get(memberDocPath(userId)).data;
     }
 
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128;
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidPlayerPayload(userId) {
+      let data = request.resource.data;
+      return data.userId == userId
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 128
+        && (!('contactPhone' in data) || (data.contactPhone is string && data.contactPhone.size() <= 64))
+        && (!('parentName' in data) || (data.parentName is string && data.parentName.size() <= 128))
+        && (!('assignedAgent' in data) || (data.assignedAgent is string && data.assignedAgent.size() <= 128))
+        && (!('trainingAgreement' in data) || (
+          data.trainingAgreement is map
+          && (!('releaseClubs' in data.trainingAgreement) || (data.trainingAgreement.releaseClubs is list && data.trainingAgreement.releaseClubs.size() <= 25))
+          && (!('seasonalSalaries' in data.trainingAgreement) || (data.trainingAgreement.seasonalSalaries is list && data.trainingAgreement.seasonalSalaries.size() <= 15))
+        ));
+    }
+
+    function isValidTeamMemberPayload(memberUid, userId) {
+      let data = request.resource.data;
+      return data.userId == userId
+        && data.uid == memberUid
+        && data.displayName is string
+        && data.displayName.size() > 0
+        && data.displayName.size() <= 128
+        && (!('email' in data) || (data.email is string && data.email.size() <= 160))
+        && data.role in ['regular', 'manager', 'viewer']
+        && data.active is bool
+        && data.canViewPlayers is bool
+        && data.canCreatePlayers is bool
+        && data.canEditPlayers is bool
+        && data.canDeletePlayers is bool
+        && data.canAccessScouting is bool
+        && data.canEditTracker is bool;
     }
 
     // Connectivity test document
@@ -25,63 +83,85 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // Shared CRM workspace pointer (zero PII; readable only by owner or active approved members)
+    match /workspaceDirectory/{directoryId} {
+      allow get: if isSignedIn() && (
+        isBootstrapOwner()
+        || (
+          directoryId == 'primary'
+          && resource != null
+          && isNonAnonymous()
+          && exists(/databases/$(database)/documents/users/$(resource.data.ownerUid)/teamMembers/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(resource.data.ownerUid)/teamMembers/$(request.auth.uid)).data.active == true
+        )
+      );
+      allow list: if false;
+      allow create, update: if directoryId == 'primary'
+        && isBootstrapOwner()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasAll(['ownerUid', 'agencyName', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['ownerUid', 'agencyName', 'updatedAt'])
+        && request.resource.data.agencyName is string
+        && request.resource.data.agencyName.size() > 0
+        && request.resource.data.agencyName.size() <= 128
+        && request.resource.data.updatedAt is string
+        && request.resource.data.updatedAt.size() <= 64;
+      allow delete: if false;
+    }
+
     // User data trees
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isWorkspaceOwner(userId);
+
+      // Approved team members & granular role permissions (STRICTLY owner-editable)
+      match /teamMembers/{memberUid} {
+        allow read: if isWorkspaceOwner(userId) || (isNonAnonymous() && request.auth.uid == memberUid);
+        allow create, update: if isWorkspaceOwner(userId)
+          && isValidId(memberUid)
+          && isValidTeamMemberPayload(memberUid, userId);
+        allow delete: if isWorkspaceOwner(userId) && isValidId(memberUid);
+      }
 
       // Agency represented female players
       match /players/{playerId} {
-        allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId) 
+        allow read: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canViewPlayers == true);
+        allow create: if (isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canCreatePlayers == true))
           && isValidId(playerId)
-          && request.resource.data.userId == userId
-          && request.resource.data.name is string
-          && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 128
-          && (!('contactPhone' in request.resource.data) || (request.resource.data.contactPhone is string && request.resource.data.contactPhone.size() <= 64))
-          && (!('parentName' in request.resource.data) || (request.resource.data.parentName is string && request.resource.data.parentName.size() <= 128))
-          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128))
-          && (!('trainingAgreement' in request.resource.data) || (
-            request.resource.data.trainingAgreement is map
-            && (!('releaseClubs' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.releaseClubs is list && request.resource.data.trainingAgreement.releaseClubs.size() <= 25))
-            && (!('seasonalSalaries' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.seasonalSalaries is list && request.resource.data.trainingAgreement.seasonalSalaries.size() <= 15))
-          ));
+          && isValidPlayerPayload(userId);
+        allow update: if (isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canEditPlayers == true))
+          && isValidId(playerId)
+          && isValidPlayerPayload(userId);
+        allow delete: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canDeletePlayers == true);
       }
 
       // Agency represented male / youth players
       match /malePlayers/{playerId} {
-        allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId) 
+        allow read: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canViewPlayers == true);
+        allow create: if (isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canCreatePlayers == true))
           && isValidId(playerId)
-          && request.resource.data.userId == userId
-          && request.resource.data.name is string
-          && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 128
-          && (!('contactPhone' in request.resource.data) || (request.resource.data.contactPhone is string && request.resource.data.contactPhone.size() <= 64))
-          && (!('parentName' in request.resource.data) || (request.resource.data.parentName is string && request.resource.data.parentName.size() <= 128))
-          && (!('assignedAgent' in request.resource.data) || (request.resource.data.assignedAgent is string && request.resource.data.assignedAgent.size() <= 128))
-          && (!('trainingAgreement' in request.resource.data) || (
-            request.resource.data.trainingAgreement is map
-            && (!('releaseClubs' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.releaseClubs is list && request.resource.data.trainingAgreement.releaseClubs.size() <= 25))
-            && (!('seasonalSalaries' in request.resource.data.trainingAgreement) || (request.resource.data.trainingAgreement.seasonalSalaries is list && request.resource.data.trainingAgreement.seasonalSalaries.size() <= 15))
-          ));
+          && isValidPlayerPayload(userId);
+        allow update: if (isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canEditPlayers == true))
+          && isValidId(playerId)
+          && isValidPlayerPayload(userId);
+        allow delete: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canDeletePlayers == true);
       }
 
       // "In Talk With" scouting prospects
       match /prospects/{prospectId} {
-        allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId)
+        allow read: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canAccessScouting == true);
+        allow create, update: if (isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canAccessScouting == true))
           && isValidId(prospectId)
           && request.resource.data.userId == userId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 128;
+        allow delete: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canAccessScouting == true && memberPerms(userId).canDeletePlayers == true);
       }
 
       // Match minutes & goal involvement tracked players
       match /trackedPlayers/{trackedPlayerId} {
-        allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId)
+        allow read: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && (memberPerms(userId).canViewPlayers == true || memberPerms(userId).canEditTracker == true));
+        allow create, update: if (isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canEditTracker == true))
           && isValidId(trackedPlayerId)
           && request.resource.data.userId == userId
           && request.resource.data.name is string
@@ -90,34 +170,46 @@ service cloud.firestore {
           && (!('linkedPlayerId' in request.resource.data) || (request.resource.data.linkedPlayerId is string && request.resource.data.linkedPlayerId.size() <= 128))
           && (!('linkedRosterType' in request.resource.data) || (request.resource.data.linkedRosterType is string && request.resource.data.linkedRosterType.size() <= 16))
           && (!('minutesCheckpoint' in request.resource.data) || (request.resource.data.minutesCheckpoint is string && request.resource.data.minutesCheckpoint.size() <= 32));
+        allow delete: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canEditTracker == true && memberPerms(userId).canDeletePlayers == true);
       }
 
       // International / foreign female prospects
       match /foreignProspects/{foreignProspectId} {
-        allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId)
+        allow read: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canAccessScouting == true);
+        allow create, update: if (isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canAccessScouting == true))
           && isValidId(foreignProspectId)
           && request.resource.data.userId == userId
           && request.resource.data.fullName is string
           && request.resource.data.fullName.size() > 0
           && request.resource.data.fullName.size() <= 128;
+        allow delete: if isWorkspaceOwner(userId) || (isActiveTeamMember(userId) && memberPerms(userId).canAccessScouting == true && memberPerms(userId).canDeletePlayers == true);
       }
 
-      // User preferences (currency, language, theme, transfer window date)
+      // User preferences (currency, language, theme, transfer window date, next match watchlist)
       match /settings/preferences {
-        allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId)
+        allow read: if isWorkspaceOwner(userId) || isActiveTeamMember(userId);
+        allow delete: if isWorkspaceOwner(userId);
+        allow create, update: if isWorkspaceOwner(userId)
           && request.resource.data.userId == userId
-          && (!('nextTransferWindowDate' in request.resource.data) || (request.resource.data.nextTransferWindowDate is string && request.resource.data.nextTransferWindowDate.size() <= 32));
+          && (!('nextTransferWindowDate' in request.resource.data) || (request.resource.data.nextTransferWindowDate is string && request.resource.data.nextTransferWindowDate.size() <= 32))
+          && (!('watchedNextMatchKeys' in request.resource.data) || (
+            request.resource.data.watchedNextMatchKeys is list
+            && request.resource.data.watchedNextMatchKeys.size() <= 24
+            && (request.resource.data.watchedNextMatchKeys.size() == 0 || (
+              request.resource.data.watchedNextMatchKeys[0] is string
+              && request.resource.data.watchedNextMatchKeys[0].size() <= 140
+            ))
+          ));
       }
 
-      // Agent directory & contact settings
+      // Agent directory & contact settings (strictly owner-editable; readable by approved team members)
       match /settings/agents {
-        allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId)
+        allow read: if isWorkspaceOwner(userId) || isActiveTeamMember(userId);
+        allow create, update: if isWorkspaceOwner(userId)
           && request.resource.data.userId == userId
           && request.resource.data.agents is list
           && request.resource.data.agents.size() <= 20;
+        allow delete: if isWorkspaceOwner(userId);
       }
     }
   }

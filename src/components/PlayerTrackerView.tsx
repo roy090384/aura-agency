@@ -61,6 +61,8 @@ interface PlayerTrackerViewProps {
   onQuickAddMinutes: (playerId: string, minutes: number) => void;
   onQuickAddMatch: (playerId: string) => void;
   language: Language;
+  canEditTracker?: boolean;
+  canDeletePlayers?: boolean;
 }
 
 export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
@@ -79,7 +81,9 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
   onQuickAddAssist,
   onQuickAddMinutes,
   onQuickAddMatch,
-  language
+  language,
+  canEditTracker = true,
+  canDeletePlayers = true
 }) => {
   const t = TRANSLATIONS[language];
 
@@ -248,7 +252,7 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Easy Bulk Delete Button */}
-          {selectedIds.length > 0 && (
+          {canEditTracker && canDeletePlayers && selectedIds.length > 0 && (
             <button
               onClick={() => onRequestDeleteMultiple(selectedIds)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors"
@@ -258,7 +262,7 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
             </button>
           )}
 
-          {onSyncWithRosters && (
+          {canEditTracker && onSyncWithRosters && (
             <button
               type="button"
               onClick={onSyncWithRosters}
@@ -274,13 +278,15 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => onOpenAddPlayer(selectedCategory !== 'ALL' ? selectedCategory : undefined)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t.trackPlayerBtn}</span>
-          </button>
+          {canEditTracker && (
+            <button
+              onClick={() => onOpenAddPlayer(selectedCategory !== 'ALL' ? selectedCategory : undefined)}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t.trackPlayerBtn}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -587,14 +593,16 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
             <table className="w-full text-left rtl:text-right border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-3 w-8">
-                    <input 
-                      type="checkbox"
-                      checked={selectedIds.length > 0 && selectedIds.length === filteredPlayers.length}
-                      onChange={handleToggleSelectAll}
-                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </th>
+                  {canEditTracker && canDeletePlayers && (
+                    <th className="py-3 px-3 w-8">
+                      <input 
+                        type="checkbox"
+                        checked={selectedIds.length > 0 && selectedIds.length === filteredPlayers.length}
+                        onChange={handleToggleSelectAll}
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="py-3 px-4">{t.thPlayer}</th>
                   <th className="py-3 px-3">Category</th>
                   <th className="py-3 px-4">Club</th>
@@ -605,8 +613,12 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                   <th className="py-3 px-3 text-center">{t.assists}</th>
                   <th className="py-3 px-4 text-center">G+A</th>
                   <th className="py-3 px-4 text-center min-w-[130px]">{t.gaTarget}</th>
-                  <th className="py-3 px-4 text-center min-w-[200px]">{t.quickStatsAction}</th>
-                  <th className="py-3 px-3 text-center">Manage</th>
+                  {canEditTracker && (
+                    <>
+                      <th className="py-3 px-4 text-center min-w-[200px]">{t.quickStatsAction}</th>
+                      <th className="py-3 px-3 text-center">Manage</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -629,14 +641,16 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                       }`}
                     >
                       {/* Checkbox */}
-                      <td className="py-3 px-3">
-                        <input 
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleSelectOne(player.id)}
-                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                        />
-                      </td>
+                      {canEditTracker && canDeletePlayers && (
+                        <td className="py-3 px-3">
+                          <input 
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectOne(player.id)}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          />
+                        </td>
+                      )}
 
                       {/* Player Profile & Gender */}
                       <td className="py-3 px-4">
@@ -732,13 +746,15 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                       {/* Minutes Played - Click to manually add or edit */}
                       <td className="py-3 px-4 text-center whitespace-nowrap font-mono-tabular">
                         <button
-                          onClick={() => onOpenManualMinutes(player)}
-                          className="group/min inline-flex flex-col items-center p-1 rounded-lg hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 transition-colors cursor-pointer"
-                          title="Click to add or edit playing time manually"
+                          type="button"
+                          disabled={!canEditTracker}
+                          onClick={() => canEditTracker && onOpenManualMinutes(player)}
+                          className={`group/min inline-flex flex-col items-center p-1 rounded-lg transition-colors ${canEditTracker ? 'hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 cursor-pointer' : 'cursor-default'}`}
+                          title={canEditTracker ? 'Click to add or edit playing time manually' : undefined}
                         >
                           <div className="font-bold text-slate-900 dark:text-white group-hover/min:text-emerald-600 dark:group-hover/min:text-emerald-400 flex items-center gap-1">
                             <span>{player.minutesPlayed}m</span>
-                            <Clock className="w-3 h-3 opacity-0 group-hover/min:opacity-100 text-emerald-600" />
+                            {canEditTracker && <Clock className="w-3 h-3 opacity-0 group-hover/min:opacity-100 text-emerald-600" />}
                           </div>
                           <div className="text-[10px] text-slate-400">
                             of {totalPossible}m max
@@ -860,109 +876,115 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                       </td>
 
                       {/* QUICK ACTIONS BUTTONS */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {/* +1 Goal Button */}
-                          <button
-                            onClick={() => onQuickAddGoal(player.id)}
-                            className="px-2 py-1 text-xs font-bold rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors"
-                            title="Add 1 Goal"
-                          >
-                            +1 G
-                          </button>
+                      {canEditTracker && (
+                        <>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {/* +1 Goal Button */}
+                              <button
+                                onClick={() => onQuickAddGoal(player.id)}
+                                className="px-2 py-1 text-xs font-bold rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                                title="Add 1 Goal"
+                              >
+                                +1 G
+                              </button>
 
-                          {/* +1 Assist Button */}
-                          <button
-                            onClick={() => onQuickAddAssist(player.id)}
-                            className="px-2 py-1 text-xs font-bold rounded bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 transition-colors"
-                            title="Add 1 Assist"
-                          >
-                            +1 A
-                          </button>
+                              {/* +1 Assist Button */}
+                              <button
+                                onClick={() => onQuickAddAssist(player.id)}
+                                className="px-2 py-1 text-xs font-bold rounded bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 transition-colors"
+                                title="Add 1 Assist"
+                              >
+                                +1 A
+                              </button>
 
-                          {/* +Minutes Dropdown Popover */}
-                          <div className="relative inline-block text-left">
-                            <button
-                              onClick={() => setOpenMinutesMenuId(isMenuOpen ? null : player.id)}
-                              className="px-2 py-1 text-xs font-semibold rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1"
-                              title="Add Minutes"
-                            >
-                              <span>+Mins</span>
-                              <ChevronDown className="w-3 h-3" />
-                            </button>
-
-                            {isMenuOpen && (
-                              <div className="absolute right-0 rtl:right-auto rtl:left-0 z-30 mt-1 w-44 rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 text-xs text-left rtl:text-right space-y-1 animate-in fade-in zoom-in-95">
+                              {/* +Minutes Dropdown Popover */}
+                              <div className="relative inline-block text-left">
                                 <button
-                                  onClick={() => {
-                                    onQuickAddMinutes(player.id, duration);
-                                    setOpenMinutesMenuId(null);
-                                  }}
-                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold flex items-center justify-between"
+                                  onClick={() => setOpenMinutesMenuId(isMenuOpen ? null : player.id)}
+                                  className="px-2 py-1 text-xs font-semibold rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1"
+                                  title="Add Minutes"
                                 >
-                                  <span>Full Game</span>
-                                  <span className="font-mono-tabular text-emerald-600 font-bold">+{duration}m</span>
+                                  <span>+Mins</span>
+                                  <ChevronDown className="w-3 h-3" />
                                 </button>
 
-                                <button
-                                  onClick={() => {
-                                    onQuickAddMinutes(player.id, 45);
-                                    setOpenMinutesMenuId(null);
-                                  }}
-                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-between"
-                                >
-                                  <span>Half Match</span>
-                                  <span className="font-mono-tabular text-sky-600 font-bold">+45m</span>
-                                </button>
+                                {isMenuOpen && (
+                                  <div className="absolute right-0 rtl:right-auto rtl:left-0 z-30 mt-1 w-44 rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 text-xs text-left rtl:text-right space-y-1 animate-in fade-in zoom-in-95">
+                                    <button
+                                      onClick={() => {
+                                        onQuickAddMinutes(player.id, duration);
+                                        setOpenMinutesMenuId(null);
+                                      }}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold flex items-center justify-between"
+                                    >
+                                      <span>Full Game</span>
+                                      <span className="font-mono-tabular text-emerald-600 font-bold">+{duration}m</span>
+                                    </button>
 
-                                <button
-                                  onClick={() => {
-                                    onQuickAddMinutes(player.id, 20);
-                                    setOpenMinutesMenuId(null);
-                                  }}
-                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-between"
-                                >
-                                  <span>Substitution</span>
-                                  <span className="font-mono-tabular text-slate-500 font-bold">+20m</span>
-                                </button>
+                                    <button
+                                      onClick={() => {
+                                        onQuickAddMinutes(player.id, 45);
+                                        setOpenMinutesMenuId(null);
+                                      }}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-between"
+                                    >
+                                      <span>Half Match</span>
+                                      <span className="font-mono-tabular text-sky-600 font-bold">+45m</span>
+                                    </button>
 
-                                <div className="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+                                    <button
+                                      onClick={() => {
+                                        onQuickAddMinutes(player.id, 20);
+                                        setOpenMinutesMenuId(null);
+                                      }}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-between"
+                                    >
+                                      <span>Substitution</span>
+                                      <span className="font-mono-tabular text-slate-500 font-bold">+20m</span>
+                                    </button>
 
-                                <button
-                                  onClick={() => {
-                                    onOpenManualMinutes(player);
-                                    setOpenMinutesMenuId(null);
-                                  }}
-                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-between"
-                                >
-                                  <span>✏️ {language === 'he' ? 'הזן דקות ידנית...' : 'Enter Manually...'}</span>
-                                </button>
+                                    <div className="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+
+                                    <button
+                                      onClick={() => {
+                                        onOpenManualMinutes(player);
+                                        setOpenMinutesMenuId(null);
+                                      }}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-between"
+                                    >
+                                      <span>✏️ {language === 'he' ? 'הזן דקות ידנית...' : 'Enter Manually...'}</span>
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
+                            </div>
+                          </td>
 
-                      {/* Edit and Delete Actions */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => onEditPlayer(player)}
-                            className="p-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
-                            title={t.editPlayer}
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Edit and Delete Actions */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => onEditPlayer(player)}
+                                className="p-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                                title={t.editPlayer}
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
 
-                          <button
-                            onClick={() => onRequestDeletePlayer(player)}
-                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-md transition-colors"
-                            title={t.deletePlayer}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
+                              {canDeletePlayers && (
+                                <button
+                                  onClick={() => onRequestDeletePlayer(player)}
+                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-md transition-colors"
+                                  title={t.deletePlayer}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </>
+                      )}
 
                     </tr>
                   );
@@ -1210,56 +1232,60 @@ export const PlayerTrackerView: React.FC<PlayerTrackerViewProps> = ({
                 </div>
 
                 {/* Card Quick Actions Bar */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => onQuickAddGoal(player.id)}
-                      className="px-2.5 py-1 text-xs font-bold rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                      title="Add 1 Goal"
-                    >
-                      +1 Goal
-                    </button>
-                    <button
-                      onClick={() => onQuickAddAssist(player.id)}
-                      className="px-2.5 py-1 text-xs font-bold rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
-                      title="Add 1 Assist"
-                    >
-                      +1 Assist
-                    </button>
-                    <button
-                      onClick={() => onQuickAddMinutes(player.id, duration)}
-                      className="px-2 py-1 text-xs font-semibold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                      title={`Add Full Game (+${duration}m)`}
-                    >
-                      +{duration}m
-                    </button>
-                    <button
-                      onClick={() => onOpenManualMinutes(player)}
-                      className="px-2 py-1 text-xs font-semibold rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1"
-                      title="Add or Edit Playing Time Manually"
-                    >
-                      <Clock className="w-3 h-3" />
-                      <span>{language === 'he' ? 'דקות ידניות' : 'Manual Mins'}</span>
-                    </button>
-                  </div>
+                {canEditTracker && (
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onQuickAddGoal(player.id)}
+                        className="px-2.5 py-1 text-xs font-bold rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                        title="Add 1 Goal"
+                      >
+                        +1 Goal
+                      </button>
+                      <button
+                        onClick={() => onQuickAddAssist(player.id)}
+                        className="px-2.5 py-1 text-xs font-bold rounded bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                        title="Add 1 Assist"
+                      >
+                        +1 Assist
+                      </button>
+                      <button
+                        onClick={() => onQuickAddMinutes(player.id, duration)}
+                        className="px-2 py-1 text-xs font-semibold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        title={`Add Full Game (+${duration}m)`}
+                      >
+                        +{duration}m
+                      </button>
+                      <button
+                        onClick={() => onOpenManualMinutes(player)}
+                        className="px-2 py-1 text-xs font-semibold rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1"
+                        title="Add or Edit Playing Time Manually"
+                      >
+                        <Clock className="w-3 h-3" />
+                        <span>{language === 'he' ? 'דקות ידניות' : 'Manual Mins'}</span>
+                      </button>
+                    </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => onEditPlayer(player)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                      title={t.editPlayer}
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => onRequestDeletePlayer(player)}
-                      className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-md"
-                      title={t.deletePlayer}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onEditPlayer(player)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        title={t.editPlayer}
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      {canDeletePlayers && (
+                        <button
+                          onClick={() => onRequestDeletePlayer(player)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-md"
+                          title={t.deletePlayer}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
             );

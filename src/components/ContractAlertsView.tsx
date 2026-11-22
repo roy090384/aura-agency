@@ -37,6 +37,7 @@ interface ContractAlertsViewProps {
   onQuickExtend: (player: Player, rosterType: 'female' | 'male') => void;
   onEditPlayer: (player: Player, rosterType: 'female' | 'male') => void;
   language: Language;
+  canEditPlayers?: boolean;
 }
 
 export const ContractAlertsView: React.FC<ContractAlertsViewProps> = ({
@@ -45,7 +46,8 @@ export const ContractAlertsView: React.FC<ContractAlertsViewProps> = ({
   onSelectPlayer,
   onQuickExtend,
   onEditPlayer,
-  language
+  language,
+  canEditPlayers = true
 }) => {
   const t = TRANSLATIONS[language];
   const [rosterFilter, setRosterFilter] = useState<'ALL' | 'female' | 'male'>('ALL');
@@ -493,21 +495,30 @@ export const ContractAlertsView: React.FC<ContractAlertsViewProps> = ({
                       </td>
 
                       <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        {canEditPlayers ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => onQuickExtend(player, rosterType)}
+                              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors shadow-2xs whitespace-nowrap shrink-0"
+                            >
+                              {t.extend}
+                            </button>
+                            <button
+                              onClick={() => onEditPlayer(player, rosterType)}
+                              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              title="Edit Contract Terms"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            onClick={() => onQuickExtend(player, rosterType)}
-                            className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors shadow-2xs whitespace-nowrap shrink-0"
+                            onClick={() => onSelectPlayer(player, rosterType)}
+                            className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           >
-                            {t.extend}
+                            {language === 'he' ? 'צפה' : 'View'}
                           </button>
-                          <button
-                            onClick={() => onEditPlayer(player, rosterType)}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                            title="Edit Contract Terms"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );

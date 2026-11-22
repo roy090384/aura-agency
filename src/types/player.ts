@@ -198,6 +198,7 @@ export interface ScoutingReport {
 export interface TalkProspect {
   id: string;
   name: string;
+  gender?: PlayerGender;
   photoUrl: string;
   age: number;
   birthDate: string;
@@ -249,6 +250,7 @@ export interface ClubOfferEntry {
 export interface ForeignProspect {
   id: string;
   fullName: string;
+  gender?: PlayerGender;
   nationalityPassport: string;
   passportCategory?: string;
   age: number;
@@ -268,3 +270,140 @@ export interface ForeignProspect {
   statusUpdatedAt?: string;
 }
 
+export interface MatchSourceLink {
+  title: string;
+  url: string;
+}
+
+export interface UpcomingMatchFixture {
+  id: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  opponent: string;
+  opponentLogoUrl?: string;
+  isHome?: boolean;
+  kickoffIso: string;
+  competition?: string;
+  venue?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+}
+
+export interface NextMatchInfo {
+  key: string; // `${rosterType}:${playerId}`
+  playerId: string;
+  rosterType: 'female' | 'male';
+  status: 'found' | 'not_found' | 'error';
+  homeTeam?: string;
+  awayTeam?: string;
+  opponent?: string;
+  opponentLogoUrl?: string;
+  isHome?: boolean;
+  kickoffIso?: string;
+  competition?: string;
+  venue?: string;
+  matchedTeamName?: string;
+  teamScopeNote?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  sources?: MatchSourceLink[];
+  upcomingMatches7d?: UpcomingMatchFixture[];
+  lookupLinks: { label: string; url: string }[];
+  fetchedAt: string;
+  errorMessage?: string;
+}
+
+export type TeamUserRole = 'regular' | 'manager' | 'viewer';
+
+export interface WorkspacePermissions {
+  isOwner: boolean;
+  canViewPlayers: boolean;
+  canCreatePlayers: boolean;
+  canEditPlayers: boolean;
+  canDeletePlayers: boolean;
+  canAccessScouting: boolean;
+  canEditTracker: boolean;
+}
+
+export interface TeamMemberRule {
+  uid: string;
+  displayName: string;
+  email?: string;
+  role: TeamUserRole;
+  active: boolean;
+  canViewPlayers: boolean;
+  canCreatePlayers: boolean;
+  canEditPlayers: boolean;
+  canDeletePlayers: boolean;
+  canAccessScouting: boolean;
+  canEditTracker: boolean;
+  userId: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const AGENCY_OWNER_EMAIL = 'roy090384@gmail.com';
+export const DEFAULT_APPROVED_TEAM_UID = 'SfddR4t71dWVcERYY1LCWVcWcTF3';
+
+export function buildTeamMemberPreset(
+  uid: string,
+  ownerUid: string,
+  role: TeamUserRole,
+  displayName = 'Regular User',
+  email = ''
+): TeamMemberRule {
+  const now = new Date().toISOString();
+  if (role === 'manager') {
+    return {
+      uid,
+      displayName,
+      email,
+      role,
+      active: true,
+      canViewPlayers: true,
+      canCreatePlayers: true,
+      canEditPlayers: true,
+      canDeletePlayers: false,
+      canAccessScouting: true,
+      canEditTracker: true,
+      userId: ownerUid,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+  if (role === 'viewer') {
+    return {
+      uid,
+      displayName,
+      email,
+      role,
+      active: true,
+      canViewPlayers: true,
+      canCreatePlayers: false,
+      canEditPlayers: false,
+      canDeletePlayers: false,
+      canAccessScouting: false,
+      canEditTracker: false,
+      userId: ownerUid,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+  // 'regular' — watch/view & create players
+  return {
+    uid,
+    displayName,
+    email,
+    role: 'regular',
+    active: true,
+    canViewPlayers: true,
+    canCreatePlayers: true,
+    canEditPlayers: false,
+    canDeletePlayers: false,
+    canAccessScouting: false,
+    canEditTracker: false,
+    userId: ownerUid,
+    createdAt: now,
+    updatedAt: now,
+  };
+}

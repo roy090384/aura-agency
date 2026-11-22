@@ -8,8 +8,21 @@ import {
   getDocs,
   getDoc
 } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Player, TalkProspect, TrackedPlayer, ForeignProspect, AgentProfile, Currency, Language } from '../types/player';
+import {
+  Player,
+  TalkProspect,
+  TrackedPlayer,
+  ForeignProspect,
+  AgentProfile,
+  Currency,
+  Language,
+  TeamMemberRule,
+  AGENCY_OWNER_EMAIL,
+  DEFAULT_APPROVED_TEAM_UID,
+  buildTeamMemberPreset
+} from '../types/player';
 
 function stripUndefined<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -330,11 +343,11 @@ export async function deleteForeignProspectFromFirestore(userId: string, prospec
 }
 
 /**
- * Real-time subscription to user's agency preferences (including nextTransferWindowDate)
+ * Real-time subscription to user's agency preferences (including nextTransferWindowDate and watchedNextMatchKeys)
  */
 export function subscribeToPreferences(
   userId: string,
-  onUpdate: (prefs: { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string }) => void,
+  onUpdate: (prefs: { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string; watchedNextMatchKeys?: string[] }) => void,
   onError?: (err: any) => void
 ) {
   const path = `users/${userId}/settings/preferences`;
@@ -344,7 +357,7 @@ export function subscribeToPreferences(
     docRef,
     (snapshot) => {
       if (snapshot.exists()) {
-        onUpdate(snapshot.data() as { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string });
+        onUpdate(snapshot.data() as { currency?: Currency; language?: Language; isDarkMode?: boolean; nextTransferWindowDate?: string; watchedNextMatchKeys?: string[] });
       }
     },
     (error) => {
@@ -355,11 +368,11 @@ export function subscribeToPreferences(
 }
 
 /**
- * Save agency preferences (currency, language, theme, nextTransferWindowDate) to Firestore
+ * Save agency preferences (currency, language, theme, nextTransferWindowDate, watchedNextMatchKeys) to Firestore
  */
 export async function savePreferencesToFirestore(
   userId: string,
-  preferences: { currency: Currency; language: Language; isDarkMode: boolean; nextTransferWindowDate?: string }
+  preferences: { currency: Currency; language: Language; isDarkMode: boolean; nextTransferWindowDate?: string; watchedNextMatchKeys?: string[] }
 ) {
   const path = `users/${userId}/settings/preferences`;
   try {
@@ -498,5 +511,177 @@ export async function syncLocalDataToFirestoreIfEmpty(
     }
   } catch (err) {
     console.error('Error during smart cloud synchronization:', err);
+  }
+}
+
+export type WorkspaceResolutionResult =
+  | { status: 'owner'; workspaceUid: string }
+  | { status: 'member'; workspaceUid: string; rule: TeamMemberRule }
+  | { status: 'disabled'; workspaceUid: string; rule: TeamMemberRule }
+  | { status: 'unauthorized' };
+
+/**
+ * Registers the primary shared CRM workspace pointer when the verified agency owner logs in.
+ */
+export async function registerWorkspaceDirectory(ownerUid: string) {
+  const path = 'workspaceDirectory/primary';
+  try {
+    const docRef = doc(db, 'workspaceDirectory', 'primary');
+    await setDoc(
+      docRef,
+      {
+        ownerUid,
+        agencyName: 'BRIT SPORT GROUP',
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Seeds the pre-approved regular user UID if not yet stored in teamMembers (Owner only).
+ */
+export async function seedDefaultTeamMemberIfMissing(ownerUid: string) {
+  const path = `users/${ownerUid}/teamMembers/${DEFAULT_APPROVED_TEAM_UID}`;
+  try {
+    const docRef = doc(db, 'users', ownerUid, 'teamMembers', DEFAULT_APPROVED_TEAM_UID);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      const defaultRule = buildTeamMemberPreset(
+        DEFAULT_APPROVED_TEAM_UID,
+        ownerUid,
+        'regular',
+        'Regular User',
+        ''
+      );
+      await setDoc(docRef, stripUndefined(defaultRule));
+    }
+  } catch (error) {
+    console.warn(`Could not verify default team member ${path}:`, error);
+  }
+}
+
+/**
+ * Resolves whether the signed-in Firebase user is the Agency Owner or an approved Team Member.
+ */
+export async function resolveWorkspaceForUser(user: User): Promise<WorkspaceResolutionResult> {
+  const normalizedEmail = (user.email || '').trim().toLowerCase();
+  if (normalizedEmail === AGENCY_OWNER_EMAIL && user.emailVerified) {
+    return { status: 'owner', workspaceUid: user.uid };
+  }
+
+  if (user.isAnonymous) {
+    return { status: 'unauthorized' };
+  }
+
+  try {
+    const dirSnap = await getDoc(doc(db, 'workspaceDirectory', 'primary'));
+    if (!dirSnap.exists()) {
+      return { status: 'unauthorized' };
+    }
+    const ownerUid = String(dirSnap.data()?.ownerUid || '');
+    if (!ownerUid) {
+      return { status: 'unauthorized' };
+    }
+
+    const memberSnap = await getDoc(doc(db, 'users', ownerUid, 'teamMembers', user.uid));
+    if (!memberSnap.exists()) {
+      return { status: 'unauthorized' };
+    }
+
+    const rule = memberSnap.data() as TeamMemberRule;
+    if (!rule.active) {
+      return { status: 'disabled', workspaceUid: ownerUid, rule };
+    }
+
+    return { status: 'member', workspaceUid: ownerUid, rule };
+  } catch (err) {
+    console.warn('Workspace access check denied or unavailable:', err);
+    return { status: 'unauthorized' };
+  }
+}
+
+/**
+ * Owner subscription to all approved team member access rules.
+ */
+export function subscribeToTeamMembers(
+  ownerUid: string,
+  onUpdate: (members: TeamMemberRule[]) => void,
+  onError?: (err: any) => void
+) {
+  const path = `users/${ownerUid}/teamMembers`;
+  const colRef = collection(db, 'users', ownerUid, 'teamMembers');
+
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: TeamMemberRule[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as TeamMemberRule);
+      });
+      list.sort((a, b) => (a.displayName || a.uid).localeCompare(b.displayName || b.uid));
+      onUpdate(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Team member real-time subscription to their own access rule (so toggles take effect live).
+ */
+export function subscribeToMyTeamMemberRule(
+  ownerUid: string,
+  memberUid: string,
+  onUpdate: (rule: TeamMemberRule | null) => void
+) {
+  const docRef = doc(db, 'users', ownerUid, 'teamMembers', memberUid);
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onUpdate(null);
+      } else {
+        onUpdate(snapshot.data() as TeamMemberRule);
+      }
+    },
+    () => {
+      onUpdate(null);
+    }
+  );
+}
+
+/**
+ * Owner-only write for saving or updating a team member access rule.
+ */
+export async function saveTeamMemberRuleToFirestore(ownerUid: string, member: TeamMemberRule) {
+  const path = `users/${ownerUid}/teamMembers/${member.uid}`;
+  try {
+    const docRef = doc(db, 'users', ownerUid, 'teamMembers', member.uid);
+    const payload = stripUndefined({
+      ...member,
+      userId: ownerUid,
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(docRef, payload, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Owner-only delete for revoking/removing a team member rule.
+ */
+export async function deleteTeamMemberRuleFromFirestore(ownerUid: string, memberUid: string) {
+  const path = `users/${ownerUid}/teamMembers/${memberUid}`;
+  try {
+    await deleteDoc(doc(db, 'users', ownerUid, 'teamMembers', memberUid));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }

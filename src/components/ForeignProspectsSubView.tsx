@@ -5,7 +5,7 @@ import {
   ClubOfferStatus,
   Language
 } from '../types/player';
-import { POSITION_TRANSLATIONS } from '../translations/translations';
+import { POSITION_TRANSLATIONS, MALE_POSITION_TRANSLATIONS } from '../translations/translations';
 import {
   TARGET_MARKET_OPTIONS,
   FOREIGN_STATUS_OPTIONS,
@@ -402,10 +402,20 @@ export const ForeignProspectsSubView: React.FC<ForeignProspectsSubViewProps> = (
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filtered.map(p => (
+                {filtered.map(p => {
+                  const isMale = p.gender === 'Male';
+                  const posMap = isMale ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
+                  return (
                   <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 dark:text-white">{p.fullName}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-900 dark:text-white">{p.fullName}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          isMale ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        }`}>
+                          {isMale ? (isHe ? 'גברים' : 'Male') : (isHe ? 'נשים' : 'Female')}
+                        </span>
+                      </div>
                       <div className="text-[11px] text-slate-500 font-mono-tabular">
                         {p.age} {isHe ? 'שנים' : 'yrs'}
                         {p.salaryExpectations ? ` · ${p.salaryExpectations}` : ''}
@@ -421,11 +431,11 @@ export const ForeignProspectsSubView: React.FC<ForeignProspectsSubViewProps> = (
                     </td>
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-800 dark:text-slate-200">
-                        {POSITION_TRANSLATIONS[language][p.primaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.primaryPosition}
+                        {posMap[language][p.primaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.primaryPosition}
                       </div>
                       {p.secondaryPosition && (
                         <div className="text-[11px] text-slate-500">
-                          {POSITION_TRANSLATIONS[language][p.secondaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.secondaryPosition}
+                          {posMap[language][p.secondaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.secondaryPosition}
                         </div>
                       )}
                     </td>
@@ -514,7 +524,8 @@ export const ForeignProspectsSubView: React.FC<ForeignProspectsSubViewProps> = (
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -522,7 +533,10 @@ export const ForeignProspectsSubView: React.FC<ForeignProspectsSubViewProps> = (
       ) : (
         /* DETAILED CARDS VIEW */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {filtered.map(p => (
+          {filtered.map(p => {
+            const isMale = p.gender === 'Male';
+            const posMap = isMale ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
+            return (
             <div
               key={p.id}
               className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
@@ -531,9 +545,16 @@ export const ForeignProspectsSubView: React.FC<ForeignProspectsSubViewProps> = (
                 {/* Header Row */}
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      {p.fullName}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        {p.fullName}
+                      </h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isMale ? 'bg-sky-100 text-sky-900 dark:bg-sky-900/60 dark:text-sky-200' : 'bg-rose-100 text-rose-900 dark:bg-rose-900/60 dark:text-rose-200'
+                      }`}>
+                        {isMale ? (isHe ? 'גברים' : 'Male') : (isHe ? 'נשים' : 'Female')}
+                      </span>
+                    </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-1.5">
                       <span className="font-semibold text-slate-700 dark:text-slate-300">
                         {p.nationalityPassport}
@@ -579,11 +600,11 @@ export const ForeignProspectsSubView: React.FC<ForeignProspectsSubViewProps> = (
                       {isHe ? 'עמדה ראשית / משנית' : 'Positions'}
                     </span>
                     <strong className="text-slate-800 dark:text-slate-200">
-                      {POSITION_TRANSLATIONS[language][p.primaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.primaryPosition}
+                      {posMap[language][p.primaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.primaryPosition}
                     </strong>
                     {p.secondaryPosition && (
                       <span className="text-[11px] text-slate-500 block">
-                        + {POSITION_TRANSLATIONS[language][p.secondaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.secondaryPosition}
+                        + {posMap[language][p.secondaryPosition as keyof typeof POSITION_TRANSLATIONS['en']] || p.secondaryPosition}
                       </span>
                     )}
                   </div>
@@ -733,7 +754,8 @@ export const ForeignProspectsSubView: React.FC<ForeignProspectsSubViewProps> = (
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

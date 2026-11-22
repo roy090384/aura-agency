@@ -1,5 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Player, TalkProspect, ForeignProspect, ConversationLog, YouthCategory, AgentProfile, Language, Currency, TrackedPlayer, TrackerCategory, NavigationTab, TrainingAgreementData } from './types/player';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Player,
+  TalkProspect,
+  ForeignProspect,
+  ConversationLog,
+  YouthCategory,
+  AgentProfile,
+  Language,
+  Currency,
+  TrackedPlayer,
+  TrackerCategory,
+  NavigationTab,
+  TrainingAgreementData,
+  TeamMemberRule,
+  WorkspacePermissions
+} from './types/player';
 import { INITIAL_PLAYERS, INITIAL_PROSPECTS } from './data/mockPlayers';
 import { INITIAL_TRACKED_PLAYERS } from './data/mockTrackedPlayers';
 import { DEFAULT_AGENTS } from './data/defaultAgents';
@@ -31,24 +46,31 @@ import { QuickExtendModal } from './components/QuickExtendModal';
 import { PlayerDetailModal } from './components/PlayerDetailModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { AuthModal } from './components/AuthModal';
-import { CheckCircle2, X } from 'lucide-react';
-import { auth, loginWithGoogle, logoutUser, loginWithEmail, loginAnonymouslyUser, getAuthErrorDiagnostic } from './firebase';
+import { CheckCircle2, X, ShieldAlert, LogOut, Copy, Check } from 'lucide-react';
+import {
+  auth,
+  loginWithGoogle,
+  logoutUser,
+  loginWithEmail,
+  resetPasswordWithEmail,
+  getAuthErrorDiagnostic
+} from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { 
-  subscribeToPlayers, 
-  savePlayerToFirestore, 
-  deletePlayerFromFirestore, 
+import {
+  subscribeToPlayers,
+  savePlayerToFirestore,
+  deletePlayerFromFirestore,
   deleteMultiplePlayersFromFirestore,
   subscribeToMalePlayers,
   saveMalePlayerToFirestore,
   deleteMalePlayerFromFirestore,
   deleteMultipleMalePlayersFromFirestore,
-  subscribeToProspects, 
-  saveProspectToFirestore, 
+  subscribeToProspects,
+  saveProspectToFirestore,
   deleteProspectFromFirestore,
-  subscribeToTrackedPlayers, 
-  saveTrackedPlayerToFirestore, 
-  deleteTrackedPlayerFromFirestore, 
+  subscribeToTrackedPlayers,
+  saveTrackedPlayerToFirestore,
+  deleteTrackedPlayerFromFirestore,
   deleteMultipleTrackedPlayersFromFirestore,
   subscribeToForeignProspects,
   saveForeignProspectToFirestore,
@@ -56,8 +78,15 @@ import {
   subscribeToAgents,
   saveAgentsToFirestore,
   subscribeToPreferences,
-  savePreferencesToFirestore, 
-  syncLocalDataToFirestoreIfEmpty 
+  savePreferencesToFirestore,
+  syncLocalDataToFirestoreIfEmpty,
+  registerWorkspaceDirectory,
+  seedDefaultTeamMemberIfMissing,
+  resolveWorkspaceForUser,
+  subscribeToTeamMembers,
+  subscribeToMyTeamMemberRule,
+  saveTeamMemberRuleToFirestore,
+  deleteTeamMemberRuleFromFirestore
 } from './services/firestoreService';
 
 export default function App() {
@@ -104,6 +133,22 @@ export default function App() {
       console.error('Failed to load nextTransferWindowDate', e);
     }
     return getDefaultNextTransferWindowDate();
+  });
+
+  // Selected Male & Female player keys for Dashboard Next Match Center
+  const [watchedNextMatchKeys, setWatchedNextMatchKeys] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('aura_watched_next_match_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((x): x is string => typeof x === 'string').slice(0, 24);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load watchedNextMatchKeys', e);
+    }
+    return [];
   });
 
   // User-owned Female Roster Players State
@@ -182,9 +227,60 @@ export default function App() {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  // Firebase Auth and Cloud Syncing state
+  // Firebase Auth, Workspace RBAC & Cloud Syncing state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
+  const [workspaceUid, setWorkspaceUid] = useState<string | null>(null);
+  const [accessStatus, setAccessStatus] = useState<'local' | 'owner' | 'member' | 'disabled' | 'unauthorized'>('local');
+  const [myMemberRule, setMyMemberRule] = useState<TeamMemberRule | null>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberRule[]>([]);
+  const [copiedUid, setCopiedUid] = useState(false);
+
+  const permissions = useMemo<WorkspacePermissions>(() => {
+    if (accessStatus === 'local' || accessStatus === 'owner') {
+      return {
+        canViewPlayers: true,
+        canCreatePlayers: true,
+        canEditPlayers: true,
+        canDeletePlayers: true,
+        canAccessScouting: true,
+        canEditTracker: true,
+        isOwner: true
+      };
+    }
+    if (accessStatus === 'member' && myMemberRule && myMemberRule.active) {
+      return {
+        canViewPlayers: myMemberRule.canViewPlayers,
+        canCreatePlayers: myMemberRule.canCreatePlayers,
+        canEditPlayers: myMemberRule.canEditPlayers,
+        canDeletePlayers: myMemberRule.canDeletePlayers,
+        canAccessScouting: myMemberRule.canAccessScouting,
+        canEditTracker: myMemberRule.canEditTracker,
+        isOwner: false
+      };
+    }
+    return {
+      canViewPlayers: false,
+      canCreatePlayers: false,
+      canEditPlayers: false,
+      canDeletePlayers: false,
+      canAccessScouting: false,
+      canEditTracker: false,
+      isOwner: false
+    };
+  }, [accessStatus, myMemberRule]);
+
+  const accessRoleLabel = useMemo(() => {
+    if (accessStatus === 'owner') return language === 'he' ? 'בעלים' : 'Owner';
+    if (accessStatus === 'member' && myMemberRule) {
+      if (myMemberRule.role === 'manager') return language === 'he' ? 'מנהל/ת' : 'Manager';
+      if (myMemberRule.role === 'viewer') return language === 'he' ? 'צופה' : 'Viewer';
+      return language === 'he' ? 'משתמש רגיל' : 'Regular User';
+    }
+    if (accessStatus === 'disabled') return language === 'he' ? 'מושעה' : 'Suspended';
+    if (accessStatus === 'unauthorized') return language === 'he' ? 'ממתין לאישור' : 'Pending Approval';
+    return undefined;
+  }, [accessStatus, myMemberRule, language]);
 
   // Mobile sidebar drawer state
   const [isOpenMobileSidebar, setIsOpenMobileSidebar] = useState(false);
@@ -296,153 +392,306 @@ export default function App() {
     }
   }, [currency]);
 
-  // Persist female players
+  // Keep activeTab valid for current user permissions
   useEffect(() => {
+    if (activeTab === 'agent-settings' && !permissions.isOwner) {
+      setActiveTab('dashboard');
+    } else if (activeTab === 'in-talk' && !permissions.canAccessScouting) {
+      setActiveTab('dashboard');
+    } else if (
+      (activeTab === 'roster' || activeTab === 'male-roster' || activeTab === 'alerts' || activeTab === 'compensation') &&
+      !permissions.canViewPlayers
+    ) {
+      setActiveTab('dashboard');
+    } else if (activeTab === 'tracker' && !permissions.canViewPlayers && !permissions.canEditTracker) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, permissions]);
+
+  // Persist female players (only in local or owner mode so restricted team sessions don't overwrite owner cache)
+  useEffect(() => {
+    if (accessStatus !== 'local' && accessStatus !== 'owner') return;
     try {
       localStorage.setItem('aura_agency_players_v4', JSON.stringify(players));
     } catch (e) {
       console.error('Failed to save players', e);
     }
-  }, [players]);
+  }, [players, accessStatus]);
 
   // Persist male players
   useEffect(() => {
+    if (accessStatus !== 'local' && accessStatus !== 'owner') return;
     try {
       localStorage.setItem('aura_male_players_v1', JSON.stringify(malePlayers));
     } catch (e) {
       console.error('Failed to save male players', e);
     }
-  }, [malePlayers]);
+  }, [malePlayers, accessStatus]);
 
   // Persist prospects
   useEffect(() => {
+    if (accessStatus !== 'local' && accessStatus !== 'owner') return;
     try {
       localStorage.setItem('aura_agency_prospects_v4', JSON.stringify(prospects));
     } catch (e) {
       console.error('Failed to save prospects', e);
     }
-  }, [prospects]);
+  }, [prospects, accessStatus]);
 
   // Persist tracked players (Player Tracker)
   useEffect(() => {
+    if (accessStatus !== 'local' && accessStatus !== 'owner') return;
     try {
       localStorage.setItem('aura_player_tracker_v2', JSON.stringify(trackedPlayers));
     } catch (e) {
       console.error('Failed to save tracked players', e);
     }
-  }, [trackedPlayers]);
+  }, [trackedPlayers, accessStatus]);
 
   // Persist foreign prospects
   useEffect(() => {
+    if (accessStatus !== 'local' && accessStatus !== 'owner') return;
     try {
       localStorage.setItem('aura_foreign_prospects_v1', JSON.stringify(foreignProspects));
     } catch (e) {
       console.error('Failed to save foreign prospects', e);
     }
-  }, [foreignProspects]);
+  }, [foreignProspects, accessStatus]);
 
   // Persist agent directory settings
   useEffect(() => {
+    if (accessStatus !== 'local' && accessStatus !== 'owner') return;
     try {
       localStorage.setItem('aura_agency_agents_v1', JSON.stringify(agents));
     } catch (e) {
       console.error('Failed to save agents', e);
     }
-  }, [agents]);
+  }, [agents, accessStatus]);
 
   // Persist global transfer window opening date
   useEffect(() => {
+    if (accessStatus !== 'local' && accessStatus !== 'owner') return;
     try {
       localStorage.setItem('aura_next_transfer_window_date_v1', nextTransferWindowDate);
     } catch (e) {
       console.error('Failed to save nextTransferWindowDate', e);
     }
-  }, [nextTransferWindowDate]);
+  }, [nextTransferWindowDate, accessStatus]);
 
-  // Firebase Auth and real-time Firestore synchronization
+  // Persist Dashboard Next Match selected player keys
   useEffect(() => {
+    try {
+      localStorage.setItem('aura_watched_next_match_v1', JSON.stringify(watchedNextMatchKeys));
+    } catch (e) {
+      console.error('Failed to save watchedNextMatchKeys', e);
+    }
+  }, [watchedNextMatchKeys]);
+
+  // 1) Firebase Auth & Workspace Role Resolution
+  useEffect(() => {
+    let unsubTeamMembers: (() => void) | undefined;
+    let unsubMyRule: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (unsubTeamMembers) {
+        unsubTeamMembers();
+        unsubTeamMembers = undefined;
+      }
+      if (unsubMyRule) {
+        unsubMyRule();
+        unsubMyRule = undefined;
+      }
+
+      setCurrentUser(user);
+
+      if (!user) {
+        setWorkspaceUid(null);
+        setAccessStatus('local');
+        setMyMemberRule(null);
+        setTeamMembers([]);
+        return;
+      }
+
+      setIsCloudSyncing(true);
+      try {
+        const res = await resolveWorkspaceForUser(user);
+
+        if (res.status === 'owner') {
+          setWorkspaceUid(res.workspaceUid);
+          setAccessStatus('owner');
+          setMyMemberRule(null);
+
+          try {
+            await registerWorkspaceDirectory(user.uid);
+            await seedDefaultTeamMemberIfMissing(user.uid);
+            await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects, malePlayers, agents);
+          } catch (err) {
+            console.error('Error initializing owner workspace:', err);
+          }
+
+          unsubTeamMembers = subscribeToTeamMembers(user.uid, (members) => {
+            setTeamMembers(members);
+          });
+        } else if (res.status === 'member' || res.status === 'disabled') {
+          setWorkspaceUid(res.workspaceUid);
+          setMyMemberRule(res.rule);
+          setAccessStatus(res.status);
+          setTeamMembers([]);
+
+          if (res.status === 'disabled') {
+            setPlayers([]);
+            setMalePlayers([]);
+            setProspects([]);
+            setForeignProspects([]);
+            setTrackedPlayers([]);
+          }
+
+          unsubMyRule = subscribeToMyTeamMemberRule(res.workspaceUid, user.uid, (liveRule) => {
+            if (!liveRule) {
+              setMyMemberRule(null);
+              setAccessStatus('unauthorized');
+            } else if (!liveRule.active) {
+              setMyMemberRule(liveRule);
+              setAccessStatus('disabled');
+            } else {
+              setMyMemberRule(liveRule);
+              setAccessStatus('member');
+            }
+          });
+        } else {
+          setWorkspaceUid(null);
+          setMyMemberRule(null);
+          setTeamMembers([]);
+          setAccessStatus('unauthorized');
+          setPlayers([]);
+          setMalePlayers([]);
+          setProspects([]);
+          setForeignProspects([]);
+          setTrackedPlayers([]);
+        }
+      } catch (err) {
+        console.error('Workspace resolution error:', err);
+        setAccessStatus('unauthorized');
+      } finally {
+        setIsCloudSyncing(false);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubTeamMembers) unsubTeamMembers();
+      if (unsubMyRule) unsubMyRule();
+    };
+  }, []);
+
+  // 2) Permission-Scoped Real-time Firestore Data Subscriptions
+  useEffect(() => {
+    if (!currentUser || !workspaceUid || (accessStatus !== 'owner' && accessStatus !== 'member')) {
+      return;
+    }
+
     let unsubPlayers: (() => void) | undefined;
     let unsubMalePlayers: (() => void) | undefined;
     let unsubProspects: (() => void) | undefined;
     let unsubTracked: (() => void) | undefined;
     let unsubForeign: (() => void) | undefined;
     let unsubAgents: (() => void) | undefined;
-    let unsubPrefs: (() => void) | undefined;
+    let unsubWorkspacePrefs: (() => void) | undefined;
+    let unsubPersonalPrefs: (() => void) | undefined;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        setIsCloudSyncing(true);
-        try {
-          await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects, malePlayers, agents);
-        } catch (err) {
-          console.error('Error syncing initial data:', err);
-        } finally {
-          setIsCloudSyncing(false);
-        }
+    if (permissions.canViewPlayers) {
+      unsubPlayers = subscribeToPlayers(workspaceUid, (remotePlayers) => {
+        setPlayers(remotePlayers);
+      });
+      unsubMalePlayers = subscribeToMalePlayers(workspaceUid, (remoteMalePlayers) => {
+        setMalePlayers(remoteMalePlayers);
+      });
+    } else {
+      setPlayers([]);
+      setMalePlayers([]);
+    }
 
-        unsubPlayers = subscribeToPlayers(user.uid, (remotePlayers) => {
-          setPlayers(remotePlayers);
-        });
+    if (permissions.canAccessScouting) {
+      unsubProspects = subscribeToProspects(workspaceUid, (remoteProspects) => {
+        setProspects(remoteProspects);
+      });
+      unsubForeign = subscribeToForeignProspects(workspaceUid, (remoteForeign) => {
+        setForeignProspects(remoteForeign);
+      });
+    } else {
+      setProspects([]);
+      setForeignProspects([]);
+    }
 
-        unsubMalePlayers = subscribeToMalePlayers(user.uid, (remoteMalePlayers) => {
-          setMalePlayers(remoteMalePlayers);
-        });
+    if (permissions.canViewPlayers || permissions.canEditTracker) {
+      unsubTracked = subscribeToTrackedPlayers(workspaceUid, (remoteTracked) => {
+        setTrackedPlayers(remoteTracked);
+      });
+    } else {
+      setTrackedPlayers([]);
+    }
 
-        unsubProspects = subscribeToProspects(user.uid, (remoteProspects) => {
-          setProspects(remoteProspects);
-        });
+    unsubAgents = subscribeToAgents(workspaceUid, (remoteAgents) => {
+      setAgents(remoteAgents);
+    });
 
-        unsubTracked = subscribeToTrackedPlayers(user.uid, (remoteTracked) => {
-          setTrackedPlayers(remoteTracked);
-        });
-
-        unsubForeign = subscribeToForeignProspects(user.uid, (remoteForeign) => {
-          setForeignProspects(remoteForeign);
-        });
-
-        unsubAgents = subscribeToAgents(user.uid, (remoteAgents) => {
-          setAgents(remoteAgents);
-        });
-
-        unsubPrefs = subscribeToPreferences(user.uid, (remotePrefs) => {
-          if (remotePrefs.nextTransferWindowDate && /^\d{4}-\d{2}-\d{2}$/.test(remotePrefs.nextTransferWindowDate)) {
-            setNextTransferWindowDate(remotePrefs.nextTransferWindowDate);
-          }
-        });
-      } else {
-        if (unsubPlayers) unsubPlayers();
-        if (unsubMalePlayers) unsubMalePlayers();
-        if (unsubProspects) unsubProspects();
-        if (unsubTracked) unsubTracked();
-        if (unsubForeign) unsubForeign();
-        if (unsubAgents) unsubAgents();
-        if (unsubPrefs) unsubPrefs();
+    unsubWorkspacePrefs = subscribeToPreferences(workspaceUid, (remotePrefs) => {
+      if (remotePrefs.nextTransferWindowDate && /^\d{4}-\d{2}-\d{2}$/.test(remotePrefs.nextTransferWindowDate)) {
+        setNextTransferWindowDate(remotePrefs.nextTransferWindowDate);
+      }
+      if (permissions.isOwner && Array.isArray(remotePrefs.watchedNextMatchKeys)) {
+        setWatchedNextMatchKeys(
+          remotePrefs.watchedNextMatchKeys.filter((x): x is string => typeof x === 'string').slice(0, 24)
+        );
       }
     });
 
+    if (!permissions.isOwner) {
+      unsubPersonalPrefs = subscribeToPreferences(currentUser.uid, (myPrefs) => {
+        if (Array.isArray(myPrefs.watchedNextMatchKeys)) {
+          setWatchedNextMatchKeys(
+            myPrefs.watchedNextMatchKeys.filter((x): x is string => typeof x === 'string').slice(0, 24)
+          );
+        }
+      });
+    }
+
     return () => {
-      unsubscribeAuth();
       if (unsubPlayers) unsubPlayers();
       if (unsubMalePlayers) unsubMalePlayers();
       if (unsubProspects) unsubProspects();
       if (unsubTracked) unsubTracked();
       if (unsubForeign) unsubForeign();
       if (unsubAgents) unsubAgents();
-      if (unsubPrefs) unsubPrefs();
+      if (unsubWorkspacePrefs) unsubWorkspacePrefs();
+      if (unsubPersonalPrefs) unsubPersonalPrefs();
     };
-  }, []);
+  }, [
+    currentUser?.uid,
+    workspaceUid,
+    accessStatus,
+    permissions.canViewPlayers,
+    permissions.canAccessScouting,
+    permissions.canEditTracker,
+    permissions.isOwner
+  ]);
 
-  // Sync preferences (language, currency, dark mode) to cloud for authenticated user
+  // Sync personal UI preferences (language, currency, dark mode, next match watchlist) to signed-in user's own doc
   useEffect(() => {
-    if (currentUser) {
-      savePreferencesToFirestore(currentUser.uid, { language, currency, isDarkMode }).catch(console.error);
+    if (currentUser && (accessStatus === 'owner' || accessStatus === 'member')) {
+      savePreferencesToFirestore(currentUser.uid, {
+        language,
+        currency,
+        isDarkMode,
+        watchedNextMatchKeys
+      }).catch(console.error);
     }
-  }, [currentUser, language, currency, isDarkMode]);
+  }, [currentUser, accessStatus, language, currency, isDarkMode, watchedNextMatchKeys]);
 
   // Keep existing Player Tracker entries automatically synced with Female & Male Rosters (never adds new players)
   useEffect(() => {
     if (isCloudSyncing) return;
+    if (currentUser && !permissions.canEditTracker) return;
     if (trackedPlayers.length === 0) return;
     if (players.length === 0 && malePlayers.length === 0) return;
 
@@ -454,18 +703,19 @@ export default function App() {
 
     if (updatedTrackedPlayers.length > 0) {
       setTrackedPlayers(nextTrackedPlayers);
-      if (currentUser) {
+      if (currentUser && workspaceUid && permissions.canEditTracker) {
         updatedTrackedPlayers.forEach(tp => {
-          saveTrackedPlayerToFirestore(currentUser.uid, tp).catch(console.error);
+          saveTrackedPlayerToFirestore(workspaceUid, tp).catch(console.error);
         });
       }
     }
-  }, [players, malePlayers, trackedPlayers, currentUser, isCloudSyncing]);
+  }, [players, malePlayers, trackedPlayers, currentUser, workspaceUid, permissions.canEditTracker, isCloudSyncing]);
 
   const handleChangeNextTransferWindowDate = (newDate: string) => {
+    if (currentUser && !permissions.isOwner) return;
     setNextTransferWindowDate(newDate);
-    if (currentUser && /^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
-      savePreferencesToFirestore(currentUser.uid, {
+    if (currentUser && workspaceUid && permissions.isOwner && /^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+      savePreferencesToFirestore(workspaceUid, {
         language,
         currency,
         isDarkMode,
@@ -474,7 +724,7 @@ export default function App() {
     }
   };
 
-  // Authentication Handlers (Google OAuth, Email/Password, and Agent Session)
+  // Authentication Handlers (Google Owner Sign-In & Team Email/Password Sign-In)
   const handleGoogleLogin = async () => {
     try {
       setIsCloudSyncing(true);
@@ -499,7 +749,7 @@ export default function App() {
       await loginWithEmail(email, pass);
       setIsAuthModalOpen(false);
       setAuthDiagnostic(null);
-      showToast(language === 'he' ? 'התחברת בהצלחה! הנתונים מסונכרנים לענן.' : 'Signed in successfully! Data synced to Firebase.');
+      showToast(language === 'he' ? 'התחברת בהצלחה! החשבון מסונכרן מול סביבת העבודה.' : 'Signed in successfully! Syncing with agency workspace.');
     } catch (err: any) {
       console.error('Email login error:', err);
       throw err;
@@ -508,25 +758,19 @@ export default function App() {
     }
   };
 
-  const handleAnonymousLogin = async () => {
-    try {
-      setIsCloudSyncing(true);
-      await loginAnonymouslyUser();
-      setIsAuthModalOpen(false);
-      setAuthDiagnostic(null);
-      showToast(language === 'he' ? 'מחובר בסשן סוכן. הנתונים מסונכרנים לענן.' : 'Agent session connected. Data synced to Firebase.');
-    } catch (err: any) {
-      console.error('Agent login error:', err);
-      throw err;
-    } finally {
-      setIsCloudSyncing(false);
-    }
+  const handleResetPassword = async (email: string) => {
+    await resetPasswordWithEmail(email);
+    showToast(language === 'he' ? 'נשלח מייל לאיפוס סיסמה.' : 'Password reset email sent.');
   };
 
   const handleLogout = async () => {
     try {
       await logoutUser();
       setCurrentUser(null);
+      setWorkspaceUid(null);
+      setAccessStatus('local');
+      setMyMemberRule(null);
+      setTeamMembers([]);
       showToast(language === 'he' ? 'התנתקת בהצלחה. האתר פועל כעת במצב מקומי.' : 'Signed out. Operating in local mode.');
     } catch (err: any) {
       console.error('Logout error:', err);
@@ -543,17 +787,44 @@ export default function App() {
     getUpcomingBirthdays(players, 30).length +
     getUpcomingBirthdays(malePlayers, 30).length;
 
-  // Agent settings save handler
+  // Agent settings save handler (Owner only)
   const handleSaveAgents = (updatedAgents: AgentProfile[]) => {
+    if (currentUser && !permissions.isOwner) {
+      showToast(language === 'he' ? 'רק בעל הסוכנות יכול לערוך הגדרות סוכנים.' : 'Only the agency owner can edit agent settings.');
+      return;
+    }
     setAgents(updatedAgents);
-    if (currentUser) {
-      saveAgentsToFirestore(currentUser.uid, updatedAgents).catch(console.error);
+    if (currentUser && workspaceUid) {
+      saveAgentsToFirestore(workspaceUid, updatedAgents).catch(console.error);
     }
     showToast(language === 'he' ? 'פרטי הסוכנים נשמרו בהצלחה.' : 'Agent contact details saved successfully.');
   };
 
+  // Owner-only CRM Team Access Rules handlers
+  const handleSaveTeamMember = async (member: TeamMemberRule) => {
+    if (!currentUser || !workspaceUid || !permissions.isOwner) {
+      showToast(language === 'he' ? 'רק בעל הסוכנות יכול לנהל הרשאות משתמשים.' : 'Only the agency owner can edit user access rules.');
+      return;
+    }
+    await saveTeamMemberRuleToFirestore(workspaceUid, {
+      ...member,
+      userId: workspaceUid
+    });
+    showToast(language === 'he' ? 'הרשאות המשתמש עודכנו בהצלחה.' : `Access rules saved for ${member.displayName || member.uid}.`);
+  };
+
+  const handleDeleteTeamMember = async (memberUid: string) => {
+    if (!currentUser || !workspaceUid || !permissions.isOwner) {
+      showToast(language === 'he' ? 'רק בעל הסוכנות יכול להסיר משתמשים.' : 'Only the agency owner can revoke user access.');
+      return;
+    }
+    await deleteTeamMemberRuleFromFirestore(workspaceUid, memberUid);
+    showToast(language === 'he' ? 'הגישה של המשתמש הוסרה.' : 'User workspace access revoked.');
+  };
+
   // Helper to sync a single roster player update onto any existing matching Player Tracker row (never creates a new row)
   const syncSavedRosterPlayerToExistingTracker = (savedPlayer: Player, rosterType: 'female' | 'male') => {
+    if (currentUser && !permissions.canEditTracker) return;
     const matchedTracked = findMatchingTrackedPlayer(savedPlayer, rosterType, trackedPlayers);
     if (!matchedTracked) return;
 
@@ -584,13 +855,26 @@ export default function App() {
     };
 
     setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? updatedTracked : tp)));
-    if (currentUser) {
-      saveTrackedPlayerToFirestore(currentUser.uid, updatedTracked).catch(console.error);
+    if (currentUser && workspaceUid && permissions.canEditTracker) {
+      saveTrackedPlayerToFirestore(workspaceUid, updatedTracked).catch(console.error);
     }
   };
 
   // Handlers for Female & Male Roster Players
   const handleSavePlayer = (savedPlayer: Player) => {
+    const targetList = playerModalRosterType === 'male' ? malePlayers : players;
+    const isExisting = targetList.some(p => p.id === savedPlayer.id);
+    if (currentUser) {
+      if (isExisting && !permissions.canEditPlayers) {
+        showToast(language === 'he' ? 'אין לך הרשאה לערוך שחקנים קיימים.' : 'You do not have permission to edit existing players.');
+        return;
+      }
+      if (!isExisting && !permissions.canCreatePlayers) {
+        showToast(language === 'he' ? 'אין לך הרשאה ליצור שחקנים חדשים.' : 'You do not have permission to create new players.');
+        return;
+      }
+    }
+
     if (playerModalRosterType === 'male') {
       setMalePlayers(prev => {
         const idx = prev.findIndex(p => p.id === savedPlayer.id);
@@ -601,8 +885,8 @@ export default function App() {
         }
         return [savedPlayer, ...prev];
       });
-      if (currentUser) {
-        saveMalePlayerToFirestore(currentUser.uid, savedPlayer).catch(console.error);
+      if (currentUser && workspaceUid) {
+        saveMalePlayerToFirestore(workspaceUid, savedPlayer).catch(console.error);
       }
       syncSavedRosterPlayerToExistingTracker(savedPlayer, 'male');
       showToast(language === 'he'
@@ -620,8 +904,8 @@ export default function App() {
       }
       return [savedPlayer, ...prev];
     });
-    if (currentUser) {
-      savePlayerToFirestore(currentUser.uid, savedPlayer).catch(console.error);
+    if (currentUser && workspaceUid) {
+      savePlayerToFirestore(workspaceUid, savedPlayer).catch(console.error);
     }
     syncSavedRosterPlayerToExistingTracker(savedPlayer, 'female');
     showToast(language === 'he' 
@@ -631,14 +915,15 @@ export default function App() {
 
   // Manual one-click sync of Male & Female Rosters to existing Player Tracker players (never adds new players)
   const handleSyncRostersToTracker = () => {
+    if (currentUser && !permissions.canEditTracker) return;
     const { nextTrackedPlayers, updatedTrackedPlayers, linkedCount, unmatchedCount } =
       syncExistingTrackedPlayersWithRosters(trackedPlayers, players, malePlayers);
 
     if (updatedTrackedPlayers.length > 0) {
       setTrackedPlayers(nextTrackedPlayers);
-      if (currentUser) {
+      if (currentUser && workspaceUid) {
         updatedTrackedPlayers.forEach(tp => {
-          saveTrackedPlayerToFirestore(currentUser.uid, tp).catch(console.error);
+          saveTrackedPlayerToFirestore(workspaceUid, tp).catch(console.error);
         });
       }
     }
@@ -657,6 +942,10 @@ export default function App() {
     agreement: TrainingAgreementData,
     linkedTrackedPlayerId?: string
   ) => {
+    if (currentUser && !permissions.canEditPlayers) {
+      showToast(language === 'he' ? 'אין לך הרשאה לעדכן הסכמי אימון.' : 'You do not have permission to edit training agreements.');
+      return;
+    }
     const sourceList = rosterType === 'male' ? malePlayers : players;
     const existingPlayer = sourceList.find(p => p.id === playerId);
     if (!existingPlayer) return;
@@ -668,13 +957,13 @@ export default function App() {
 
     if (rosterType === 'male') {
       setMalePlayers(prev => prev.map(p => (p.id === playerId ? updatedPlayer : p)));
-      if (currentUser) {
-        saveMalePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      if (currentUser && workspaceUid) {
+        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
       }
     } else {
       setPlayers(prev => prev.map(p => (p.id === playerId ? updatedPlayer : p)));
-      if (currentUser) {
-        savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      if (currentUser && workspaceUid) {
+        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
       }
     }
 
@@ -690,7 +979,7 @@ export default function App() {
 
     let syncedTrackedUpdated = false;
 
-    if (matchedTracked) {
+    if (matchedTracked && (!currentUser || permissions.canEditTracker)) {
       if (agreement.minutesClauseEnabled && agreement.syncMinutesWithTracker !== false) {
         const nextTracked: TrackedPlayer = {
           ...matchedTracked,
@@ -701,8 +990,8 @@ export default function App() {
           minutesCheckpoint: agreement.minutesCheckpoint
         };
         setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? nextTracked : tp)));
-        if (currentUser) {
-          saveTrackedPlayerToFirestore(currentUser.uid, nextTracked).catch(console.error);
+        if (currentUser && workspaceUid) {
+          saveTrackedPlayerToFirestore(workspaceUid, nextTracked).catch(console.error);
         }
         syncedTrackedUpdated = true;
       } else if (
@@ -718,8 +1007,8 @@ export default function App() {
           minutesCheckpoint: undefined
         };
         setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? clearedTracked : tp)));
-        if (currentUser) {
-          saveTrackedPlayerToFirestore(currentUser.uid, clearedTracked).catch(console.error);
+        if (currentUser && workspaceUid) {
+          saveTrackedPlayerToFirestore(workspaceUid, clearedTracked).catch(console.error);
         }
       }
     }
@@ -740,6 +1029,7 @@ export default function App() {
   };
 
   const handleUpdateYouthCategory = (playerId: string, category: YouthCategory, rosterType: 'female' | 'male' = 'female') => {
+    if (currentUser && !permissions.canEditPlayers) return;
     let updatedPlayer: Player | undefined;
     if (rosterType === 'male') {
       setMalePlayers(prev => prev.map(p => {
@@ -749,8 +1039,8 @@ export default function App() {
         }
         return p;
       }));
-      if (currentUser && updatedPlayer) {
-        saveMalePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      if (currentUser && workspaceUid && updatedPlayer) {
+        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
       }
     } else {
       setPlayers(prev => prev.map(p => {
@@ -760,8 +1050,8 @@ export default function App() {
         }
         return p;
       }));
-      if (currentUser && updatedPlayer) {
-        savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      if (currentUser && workspaceUid && updatedPlayer) {
+        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
       }
     }
     showToast(language === 'he'
@@ -771,6 +1061,7 @@ export default function App() {
 
   // Deletion triggers
   const handleRequestDeletePlayer = (player: Player) => {
+    if (currentUser && !permissions.canDeletePlayers) return;
     setDeleteTarget({
       isOpen: true,
       type: 'single_player',
@@ -779,6 +1070,7 @@ export default function App() {
   };
 
   const handleRequestDeleteMultiple = (playerIds: string[]) => {
+    if (currentUser && !permissions.canDeletePlayers) return;
     setDeleteTarget({
       isOpen: true,
       type: 'multiple_players',
@@ -787,6 +1079,7 @@ export default function App() {
   };
 
   const handleRequestDeleteMalePlayer = (player: Player) => {
+    if (currentUser && !permissions.canDeletePlayers) return;
     setDeleteTarget({
       isOpen: true,
       type: 'single_male_player',
@@ -795,6 +1088,7 @@ export default function App() {
   };
 
   const handleRequestDeleteMultipleMale = (playerIds: string[]) => {
+    if (currentUser && !permissions.canDeletePlayers) return;
     setDeleteTarget({
       isOpen: true,
       type: 'multiple_male_players',
@@ -803,6 +1097,7 @@ export default function App() {
   };
 
   const handleRequestDeleteProspect = (prospect: TalkProspect) => {
+    if (currentUser && (!permissions.canAccessScouting || !permissions.canDeletePlayers)) return;
     setDeleteTarget({
       isOpen: true,
       type: 'single_prospect',
@@ -811,6 +1106,7 @@ export default function App() {
   };
 
   const handleRequestDeleteForeignProspect = (foreignProspect: ForeignProspect) => {
+    if (currentUser && (!permissions.canAccessScouting || !permissions.canDeletePlayers)) return;
     setDeleteTarget({
       isOpen: true,
       type: 'single_foreign_prospect',
@@ -819,19 +1115,20 @@ export default function App() {
   };
 
   const handleConfirmDelete = () => {
+    if (currentUser && !permissions.canDeletePlayers) return;
     if (deleteTarget.type === 'single_player' && deleteTarget.player) {
       const pid = deleteTarget.player.id;
       setPlayers(prev => prev.filter(p => p.id !== pid));
       if (detailPlayer?.id === pid) setDetailPlayer(null);
-      if (currentUser) {
-        deletePlayerFromFirestore(currentUser.uid, pid).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deletePlayerFromFirestore(workspaceUid, pid).catch(console.error);
       }
       showToast(language === 'he' ? 'השחקנית נמחקה מסגל השחקניות.' : 'Player removed from female roster.');
     } else if (deleteTarget.type === 'multiple_players' && deleteTarget.playerIds) {
       const ids = new Set(deleteTarget.playerIds);
       setPlayers(prev => prev.filter(p => !ids.has(p.id)));
-      if (currentUser) {
-        deleteMultiplePlayersFromFirestore(currentUser.uid, deleteTarget.playerIds).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deleteMultiplePlayersFromFirestore(workspaceUid, deleteTarget.playerIds).catch(console.error);
       }
       showToast(language === 'he' 
         ? `${deleteTarget.playerIds.length} שחקניות נמחקו מסגל השחקניות.` 
@@ -840,15 +1137,15 @@ export default function App() {
       const pid = deleteTarget.player.id;
       setMalePlayers(prev => prev.filter(p => p.id !== pid));
       if (detailPlayer?.id === pid) setDetailPlayer(null);
-      if (currentUser) {
-        deleteMalePlayerFromFirestore(currentUser.uid, pid).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deleteMalePlayerFromFirestore(workspaceUid, pid).catch(console.error);
       }
       showToast(language === 'he' ? 'השחקן נמחק מסגל בנים ונוער.' : 'Player removed from male roster.');
     } else if (deleteTarget.type === 'multiple_male_players' && deleteTarget.playerIds) {
       const ids = new Set(deleteTarget.playerIds);
       setMalePlayers(prev => prev.filter(p => !ids.has(p.id)));
-      if (currentUser) {
-        deleteMultipleMalePlayersFromFirestore(currentUser.uid, deleteTarget.playerIds).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deleteMultipleMalePlayersFromFirestore(workspaceUid, deleteTarget.playerIds).catch(console.error);
       }
       showToast(language === 'he'
         ? `${deleteTarget.playerIds.length} שחקנים נמחקו מסגל בנים ונוער.`
@@ -856,29 +1153,31 @@ export default function App() {
     } else if (deleteTarget.type === 'single_prospect' && deleteTarget.prospect) {
       const pid = deleteTarget.prospect.id;
       setProspects(prev => prev.filter(p => p.id !== pid));
-      if (currentUser) {
-        deleteProspectFromFirestore(currentUser.uid, pid).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deleteProspectFromFirestore(workspaceUid, pid).catch(console.error);
       }
       showToast(language === 'he' ? 'המועמדת הוסרה מצינור השיחות.' : 'Candidate removed from talk pipeline.');
     } else if (deleteTarget.type === 'single_foreign_prospect' && deleteTarget.foreignProspect) {
       const pid = deleteTarget.foreignProspect.id;
       setForeignProspects(prev => prev.filter(p => p.id !== pid));
-      if (currentUser) {
-        deleteForeignProspectFromFirestore(currentUser.uid, pid).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deleteForeignProspectFromFirestore(workspaceUid, pid).catch(console.error);
       }
       showToast(language === 'he' ? 'השחקנית הזרה הוסרה מרשימת המעקב.' : 'Foreign prospect removed from pipeline.');
     } else if (deleteTarget.type === 'single_tracked' && deleteTarget.trackedPlayer) {
+      if (currentUser && !permissions.canEditTracker) return;
       const pid = deleteTarget.trackedPlayer.id;
       setTrackedPlayers(prev => prev.filter(p => p.id !== pid));
-      if (currentUser) {
-        deleteTrackedPlayerFromFirestore(currentUser.uid, pid).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deleteTrackedPlayerFromFirestore(workspaceUid, pid).catch(console.error);
       }
       showToast(language === 'he' ? 'השחקן/ית הוסר/ה מכלי המעקב.' : 'Player removed from Player Tracker.');
     } else if (deleteTarget.type === 'multiple_tracked' && deleteTarget.trackedIds) {
+      if (currentUser && !permissions.canEditTracker) return;
       const ids = new Set(deleteTarget.trackedIds);
       setTrackedPlayers(prev => prev.filter(p => !ids.has(p.id)));
-      if (currentUser) {
-        deleteMultipleTrackedPlayersFromFirestore(currentUser.uid, deleteTarget.trackedIds).catch(console.error);
+      if (currentUser && workspaceUid) {
+        deleteMultipleTrackedPlayersFromFirestore(workspaceUid, deleteTarget.trackedIds).catch(console.error);
       }
       showToast(language === 'he' 
         ? `${deleteTarget.trackedIds.length} שחקנים הוסרו מהמעקב.` 
@@ -888,6 +1187,7 @@ export default function App() {
 
   // Handlers for Player Tracker
   const handleSaveTrackedPlayer = (player: TrackedPlayer) => {
+    if (currentUser && !permissions.canEditTracker) return;
     setTrackedPlayers(prev => {
       const idx = prev.findIndex(p => p.id === player.id);
       if (idx >= 0) {
@@ -897,8 +1197,8 @@ export default function App() {
       }
       return [player, ...prev];
     });
-    if (currentUser) {
-      saveTrackedPlayerToFirestore(currentUser.uid, player).catch(console.error);
+    if (currentUser && workspaceUid) {
+      saveTrackedPlayerToFirestore(workspaceUid, player).catch(console.error);
     }
     showToast(language === 'he' 
       ? `השחקן/ית "${player.name}" נשמר/ה בהצלחה במעקב.` 
@@ -906,6 +1206,7 @@ export default function App() {
   };
 
   const handleQuickAddGoal = (playerId: string) => {
+    if (currentUser && !permissions.canEditTracker) return;
     let updatedPlayer: TrackedPlayer | undefined;
     setTrackedPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
@@ -918,12 +1219,13 @@ export default function App() {
       }
       return p;
     }));
-    if (currentUser && updatedPlayer) {
-      saveTrackedPlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    if (currentUser && workspaceUid && updatedPlayer) {
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
     }
   };
 
   const handleQuickAddAssist = (playerId: string) => {
+    if (currentUser && !permissions.canEditTracker) return;
     let updatedPlayer: TrackedPlayer | undefined;
     setTrackedPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
@@ -936,12 +1238,13 @@ export default function App() {
       }
       return p;
     }));
-    if (currentUser && updatedPlayer) {
-      saveTrackedPlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    if (currentUser && workspaceUid && updatedPlayer) {
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
     }
   };
 
   const handleQuickAddMinutes = (playerId: string, minutes: number) => {
+    if (currentUser && !permissions.canEditTracker) return;
     let updatedPlayer: TrackedPlayer | undefined;
     setTrackedPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
@@ -954,12 +1257,13 @@ export default function App() {
       }
       return p;
     }));
-    if (currentUser && updatedPlayer) {
-      saveTrackedPlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    if (currentUser && workspaceUid && updatedPlayer) {
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
     }
   };
 
   const handleQuickAddMatch = (playerId: string) => {
+    if (currentUser && !permissions.canEditTracker) return;
     let updatedPlayer: TrackedPlayer | undefined;
     setTrackedPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
@@ -973,8 +1277,8 @@ export default function App() {
       }
       return p;
     }));
-    if (currentUser && updatedPlayer) {
-      saveTrackedPlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    if (currentUser && workspaceUid && updatedPlayer) {
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
     }
   };
 
@@ -990,6 +1294,7 @@ export default function App() {
       note?: string;
     }
   ) => {
+    if (currentUser && !permissions.canEditTracker) return;
     let updatedPlayer: TrackedPlayer | undefined;
     setTrackedPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
@@ -1010,12 +1315,13 @@ export default function App() {
       }
       return p;
     }));
-    if (currentUser && updatedPlayer) {
-      saveTrackedPlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    if (currentUser && workspaceUid && updatedPlayer) {
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
     }
   };
 
   const handleUpdateTarget = (playerId: string, target: number) => {
+    if (currentUser && !permissions.canEditTracker) return;
     let updatedPlayer: TrackedPlayer | undefined;
     setTrackedPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
@@ -1024,13 +1330,14 @@ export default function App() {
       }
       return p;
     }));
-    if (currentUser && updatedPlayer) {
-      saveTrackedPlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+    if (currentUser && workspaceUid && updatedPlayer) {
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
     }
     showToast(language === 'he' ? 'יעד מעורבות בשערים עודכן בהצלחה.' : 'Goal involvement target updated successfully.');
   };
 
   const handleQuickExtend = (playerId: string, newExpiryDate: string, updatedStatus: any, renewalNote: string) => {
+    if (currentUser && !permissions.canEditPlayers) return;
     let updatedPlayer: Player | undefined;
     if (quickExtendRosterType === 'male') {
       setMalePlayers(prev => prev.map(p => {
@@ -1045,8 +1352,8 @@ export default function App() {
         }
         return p;
       }));
-      if (currentUser && updatedPlayer) {
-        saveMalePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      if (currentUser && workspaceUid && updatedPlayer) {
+        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
       }
     } else {
       setPlayers(prev => prev.map(p => {
@@ -1061,8 +1368,8 @@ export default function App() {
         }
         return p;
       }));
-      if (currentUser && updatedPlayer) {
-        savePlayerToFirestore(currentUser.uid, updatedPlayer).catch(console.error);
+      if (currentUser && workspaceUid && updatedPlayer) {
+        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
       }
     }
     showToast(language === 'he' ? 'הארכת החוזה נרשמה בהצלחה.' : 'Contract extension recorded and expiration alert updated.');
@@ -1070,6 +1377,7 @@ export default function App() {
 
   // Handlers for Prospects ("In Talk With")
   const handleSaveProspect = (savedProspect: TalkProspect) => {
+    if (currentUser && !permissions.canAccessScouting) return;
     // If user marked stage as 'Signed', automatically move to agency roster!
     if (savedProspect.talkStage === 'Signed') {
       handleSignProspectToRoster(savedProspect);
@@ -1085,16 +1393,18 @@ export default function App() {
       }
       return [savedProspect, ...prev];
     });
-    if (currentUser) {
-      saveProspectToFirestore(currentUser.uid, savedProspect).catch(console.error);
+    if (currentUser && workspaceUid) {
+      saveProspectToFirestore(workspaceUid, savedProspect).catch(console.error);
     }
+    const isMale = savedProspect.gender === 'Male';
     showToast(language === 'he' 
-      ? `המועמדת "${savedProspect.name}" נשמרה במועמדות לייצוג בסוכנות.` 
+      ? `${isMale ? 'המועמד' : 'המועמדת'} "${savedProspect.name}" נשמר במועמדים לייצוג בסוכנות.` 
       : `Candidate "${savedProspect.name}" saved to agency pipeline.`);
   };
 
   // Handlers for International / Foreign Female Prospects
   const handleSaveForeignProspect = (savedForeign: ForeignProspect) => {
+    if (currentUser && !permissions.canAccessScouting) return;
     setForeignProspects(prev => {
       const idx = prev.findIndex(p => p.id === savedForeign.id);
       if (idx >= 0) {
@@ -1104,8 +1414,8 @@ export default function App() {
       }
       return [savedForeign, ...prev];
     });
-    if (currentUser) {
-      saveForeignProspectToFirestore(currentUser.uid, savedForeign).catch(console.error);
+    if (currentUser && workspaceUid) {
+      saveForeignProspectToFirestore(workspaceUid, savedForeign).catch(console.error);
     }
     showToast(language === 'he'
       ? `השחקנית הזרה "${savedForeign.fullName}" נשמרה בהצלחה.`
@@ -1113,6 +1423,7 @@ export default function App() {
   };
 
   const handleAddConversationLog = (prospectId: string, newLog: ConversationLog) => {
+    if (currentUser && !permissions.canAccessScouting) return;
     let updatedProspect: TalkProspect | undefined;
     setProspects(prev => prev.map(p => {
       if (p.id === prospectId) {
@@ -1124,22 +1435,40 @@ export default function App() {
       }
       return p;
     }));
-    if (currentUser && updatedProspect) {
-      saveProspectToFirestore(currentUser.uid, updatedProspect).catch(console.error);
+    if (currentUser && workspaceUid && updatedProspect) {
+      saveProspectToFirestore(workspaceUid, updatedProspect).catch(console.error);
     }
     showToast(language === 'he' ? 'סיכום שיחה חדש נוסף ליומן.' : 'New interaction note logged.');
   };
 
   // Convert "In Talk With" Prospect to Signed Agency Player and MOVE to Agency Roster!
   const handleSignProspectToRoster = (prospect: TalkProspect) => {
+    if (currentUser && (!permissions.canAccessScouting || !permissions.canCreatePlayers)) return;
+    const isMale = prospect.gender === 'Male';
     const now = new Date();
     const expiry = new Date();
     expiry.setFullYear(expiry.getFullYear() + 2);
 
-    const calculatedMarketVal = prospect.scope === 'International' ? '€500,000' : '€350,000';
+    const calculatedMarketVal = isMale
+      ? (prospect.scope === 'International' ? '€300,000' : '€150,000')
+      : (prospect.scope === 'International' ? '€500,000' : '€350,000');
+
+    const defaultYouth: YouthCategory =
+      prospect.youthCategory ||
+      (isMale && prospect.age <= 14
+        ? 'U14'
+        : prospect.age <= 15
+        ? 'U15'
+        : isMale && prospect.age === 16
+        ? 'U16'
+        : prospect.age <= 17
+        ? 'U17'
+        : prospect.age <= 19
+        ? 'U19'
+        : 'Senior');
 
     const newPlayer: Player = {
-      id: `ply-signed-${Date.now()}`,
+      id: `${isMale ? 'mply' : 'ply'}-signed-${Date.now()}`,
       name: prospect.name,
       photoUrl: prospect.photoUrl || '/src/assets/images/player_portrait_midfield_1794074972939.jpg',
       age: prospect.age,
@@ -1149,7 +1478,7 @@ export default function App() {
       clubName: prospect.currentClub,
       league: prospect.league,
       position: prospect.position,
-      youthCategory: prospect.youthCategory || (prospect.age <= 15 ? 'U15' : prospect.age <= 17 ? 'U17' : prospect.age <= 19 ? 'U19' : 'Senior'),
+      youthCategory: defaultYouth,
       jerseyNumber: 10,
       dominantFoot: prospect.scoutingReport.dominantFoot,
       contractStartDate: now.toISOString().split('T')[0],
@@ -1158,27 +1487,47 @@ export default function App() {
       marketValue: calculatedMarketVal,
       agencyFeePct: 10,
       representationType: 'Exclusive',
+      assignedAgent: prospect.assignedAgent || agents[0]?.name || 'Roy Shpitalnik',
       notes: `Signed to BRIT SPORT GROUP Management representation from ${prospect.currentClub}. Assigned agent: ${prospect.assignedAgent}.`,
       videoHighlightsUrl: prospect.videoUrl || '',
       createdAt: now.toISOString().split('T')[0]
     };
 
-    // 1. Add to Agency Roster
-    setPlayers(prev => [newPlayer, ...prev]);
-
-    // 2. Automatically REMOVE from "In Talk With" candidates list (Move operation)
-    setProspects(prev => prev.filter(p => p.id !== prospect.id));
-
-    // 3. Persist in Firestore
-    if (currentUser) {
-      savePlayerToFirestore(currentUser.uid, newPlayer).catch(console.error);
-      deleteProspectFromFirestore(currentUser.uid, prospect.id).catch(console.error);
+    // 1. Add to Female or Male Agency Roster
+    if (isMale) {
+      setMalePlayers(prev => [newPlayer, ...prev]);
+    } else {
+      setPlayers(prev => [newPlayer, ...prev]);
     }
 
-    showToast(language === 'he'
-      ? `🎉 ברכות! ${prospect.name} נחתמה בסוכנות והועברה ישירות לסגל השחקניות הרשמי!`
-      : `🎉 Congratulations! ${prospect.name} signed to agency and moved to Female Roster!`);
-    setActiveTab('roster');
+    // 2. Move out of "In Talk With" candidates list when user can delete prospects
+    if (!currentUser || permissions.canDeletePlayers) {
+      setProspects(prev => prev.filter(p => p.id !== prospect.id));
+    }
+
+    // 3. Persist in Firestore
+    if (currentUser && workspaceUid) {
+      if (isMale) {
+        saveMalePlayerToFirestore(workspaceUid, newPlayer).catch(console.error);
+      } else {
+        savePlayerToFirestore(workspaceUid, newPlayer).catch(console.error);
+      }
+      if (permissions.canDeletePlayers) {
+        deleteProspectFromFirestore(workspaceUid, prospect.id).catch(console.error);
+      }
+    }
+
+    if (isMale) {
+      showToast(language === 'he'
+        ? `🎉 ברכות! ${prospect.name} נחתם בסוכנות והועבר ישירות לסגל בנים ונוער!`
+        : `🎉 Congratulations! ${prospect.name} signed to agency and moved to Male Roster!`);
+      setActiveTab('male-roster');
+    } else {
+      showToast(language === 'he'
+        ? `🎉 ברכות! ${prospect.name} נחתמה בסוכנות והועברה ישירות לסגל השחקניות הרשמי!`
+        : `🎉 Congratulations! ${prospect.name} signed to agency and moved to Female Roster!`);
+      setActiveTab('roster');
+    }
   };
 
   // Video viewer launcher
@@ -1279,6 +1628,8 @@ export default function App() {
         onLogout={handleLogout}
         isCloudSyncing={isCloudSyncing}
         onExportBackup={handleExportBackup}
+        permissions={permissions}
+        accessRoleLabel={accessRoleLabel}
       />
 
       {/* Main Content Area */}
@@ -1319,10 +1670,67 @@ export default function App() {
           onLogin={() => setIsAuthModalOpen(true)}
           onLogout={handleLogout}
           isCloudSyncing={isCloudSyncing}
+          permissions={permissions}
         />
 
         {/* Main Viewport Container */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {currentUser && (accessStatus === 'unauthorized' || accessStatus === 'disabled') ? (
+          <div className="max-w-lg mx-auto mt-10 bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-900/60 p-6 sm:p-8 shadow-sm text-center space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                {accessStatus === 'disabled'
+                  ? language === 'he' ? 'הגישה שלך הושהתה על ידי בעל הסוכנות' : 'Workspace Access Suspended'
+                  : language === 'he' ? 'החשבון ממתין לאישור בעל הסוכנות' : 'Workspace Approval Required'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                {accessStatus === 'disabled'
+                  ? language === 'he'
+                    ? 'בעל הסוכנות השהה זמנית את הרשאות הגישה שלך בהגדרות הסוכנות.'
+                    : 'Your team access has been temporarily suspended by the agency owner in Agent Settings.'
+                  : language === 'he'
+                    ? 'המשתמש מחובר ל-Firebase, אך עדיין לא אושר בהרשאות הסוכנות (או שבעל הסוכנות טרם התחבר עם Google כדי לפתוח את סביבת העבודה).'
+                    : 'You are signed in to Firebase, but your User UID is not active in the owner workspace yet (or the agency owner must sign in once with Google to initialize team sharing).'}
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-left rtl:text-right space-y-1.5">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                Email: <strong className="text-slate-900 dark:text-white">{currentUser.email || '—'}</strong>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  UID: <code className="font-mono text-slate-900 dark:text-white">{currentUser.uid}</code>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(currentUser.uid);
+                    setCopiedUid(true);
+                    setTimeout(() => setCopiedUid(false), 2000);
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0"
+                >
+                  {copiedUid ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedUid ? 'Copied' : 'Copy UID'}</span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{t.signOut}</span>
+            </button>
+          </div>
+        ) : (
+        <>
         {activeTab === 'dashboard' && (
           <DashboardView
             players={players}
@@ -1331,6 +1739,9 @@ export default function App() {
             foreignProspects={foreignProspects}
             trackedPlayers={trackedPlayers}
             agents={agents}
+            watchedNextMatchKeys={watchedNextMatchKeys}
+            onChangeWatchedNextMatchKeys={setWatchedNextMatchKeys}
+            permissions={permissions}
             onNavigateTab={setActiveTab}
             onNavigateAlertsHub={(subTab) => {
               setAlertsSubTab(subTab);
@@ -1345,6 +1756,7 @@ export default function App() {
               setDetailPlayer(player);
             }}
             onSelectProspect={prospect => {
+              if (!permissions.canAccessScouting) return;
               if (prospect.videoUrl && prospect.videoUrl.trim()) {
                 handleWatchVideo(
                   prospect.videoTitle,
@@ -1358,14 +1770,17 @@ export default function App() {
               }
             }}
             onSelectForeignProspect={fp => {
+              if (!permissions.canAccessScouting) return;
               setForeignProspectToEdit(fp);
               setIsForeignProspectModalOpen(true);
             }}
             onOpenQuickExtend={(player, rosterType) => {
+              if (!permissions.canEditPlayers) return;
               setQuickExtendRosterType(rosterType);
               setQuickExtendPlayer(player);
             }}
             onOpenAddPlayer={(rosterType) => {
+              if (!permissions.canCreatePlayers) return;
               setPlayerModalRosterType(rosterType);
               setPlayerToEdit(null);
               setIsPlayerModalOpen(true);
@@ -1376,18 +1791,22 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'roster' && (
+        {activeTab === 'roster' && permissions.canViewPlayers && (
           <PlayerListView
             players={players}
             rosterType="female"
             agents={agents}
             nextTransferWindowDate={nextTransferWindowDate}
-            onChangeNextTransferWindowDate={handleChangeNextTransferWindowDate}
+            onChangeNextTransferWindowDate={permissions.isOwner ? handleChangeNextTransferWindowDate : undefined}
+            canCreatePlayers={permissions.canCreatePlayers}
+            canEditPlayers={permissions.canEditPlayers}
+            canDeletePlayers={permissions.canDeletePlayers}
             onSelectPlayer={player => {
               setDetailPlayerRosterType('female');
               setDetailPlayer(player);
             }}
             onEditPlayer={player => {
+              if (!permissions.canEditPlayers) return;
               setPlayerModalRosterType('female');
               setPlayerToEdit(player);
               setIsPlayerModalOpen(true);
@@ -1395,10 +1814,12 @@ export default function App() {
             onRequestDeletePlayer={handleRequestDeletePlayer}
             onRequestDeleteMultiple={handleRequestDeleteMultiple}
             onQuickExtend={player => {
+              if (!permissions.canEditPlayers) return;
               setQuickExtendRosterType('female');
               setQuickExtendPlayer(player);
             }}
             onOpenAddPlayer={() => {
+              if (!permissions.canCreatePlayers) return;
               setPlayerModalRosterType('female');
               setPlayerToEdit(null);
               setIsPlayerModalOpen(true);
@@ -1409,18 +1830,22 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'male-roster' && (
+        {activeTab === 'male-roster' && permissions.canViewPlayers && (
           <PlayerListView
             players={malePlayers}
             rosterType="male"
             agents={agents}
             nextTransferWindowDate={nextTransferWindowDate}
-            onChangeNextTransferWindowDate={handleChangeNextTransferWindowDate}
+            onChangeNextTransferWindowDate={permissions.isOwner ? handleChangeNextTransferWindowDate : undefined}
+            canCreatePlayers={permissions.canCreatePlayers}
+            canEditPlayers={permissions.canEditPlayers}
+            canDeletePlayers={permissions.canDeletePlayers}
             onSelectPlayer={player => {
               setDetailPlayerRosterType('male');
               setDetailPlayer(player);
             }}
             onEditPlayer={player => {
+              if (!permissions.canEditPlayers) return;
               setPlayerModalRosterType('male');
               setPlayerToEdit(player);
               setIsPlayerModalOpen(true);
@@ -1428,10 +1853,12 @@ export default function App() {
             onRequestDeletePlayer={handleRequestDeleteMalePlayer}
             onRequestDeleteMultiple={handleRequestDeleteMultipleMale}
             onQuickExtend={player => {
+              if (!permissions.canEditPlayers) return;
               setQuickExtendRosterType('male');
               setQuickExtendPlayer(player);
             }}
             onOpenAddPlayer={() => {
+              if (!permissions.canCreatePlayers) return;
               setPlayerModalRosterType('male');
               setPlayerToEdit(null);
               setIsPlayerModalOpen(true);
@@ -1442,7 +1869,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'in-talk' && (
+        {activeTab === 'in-talk' && permissions.canAccessScouting && (
           <InTalkWithView
             prospects={prospects}
             foreignProspects={foreignProspects}
@@ -1482,22 +1909,25 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'alerts' && (
+        {activeTab === 'alerts' && permissions.canViewPlayers && (
           <AlertsHubView
             femalePlayers={players}
             malePlayers={malePlayers}
             agents={agents}
             subTab={alertsSubTab}
             onSubTabChange={setAlertsSubTab}
+            canEditPlayers={permissions.canEditPlayers}
             onSelectPlayer={(player, rosterType) => {
               setDetailPlayerRosterType(rosterType);
               setDetailPlayer(player);
             }}
             onQuickExtend={(player, rosterType) => {
+              if (!permissions.canEditPlayers) return;
               setQuickExtendRosterType(rosterType);
               setQuickExtendPlayer(player);
             }}
             onEditPlayer={(player, rosterType) => {
+              if (!permissions.canEditPlayers) return;
               setPlayerModalRosterType(rosterType);
               setPlayerToEdit(player);
               setIsPlayerModalOpen(true);
@@ -1507,28 +1937,36 @@ export default function App() {
         )}
 
         {/* Player Tracker Tool Tab */}
-        {activeTab === 'tracker' && (
+        {activeTab === 'tracker' && (permissions.canViewPlayers || permissions.canEditTracker) && (
           <PlayerTrackerView
             players={trackedPlayers}
             femalePlayers={players}
             malePlayers={malePlayers}
+            canEditTracker={permissions.canEditTracker}
+            canDeletePlayers={permissions.canDeletePlayers}
             onOpenRosterPlayer={(p, rosterType) => {
               setDetailPlayerRosterType(rosterType);
               setDetailPlayer(p);
             }}
             onSyncWithRosters={handleSyncRostersToTracker}
             onOpenAddPlayer={(cat) => {
+              if (!permissions.canEditTracker) return;
               if (cat) setDefaultTrackerCategory(cat);
               setTrackedPlayerToEdit(null);
               setIsAddTrackedModalOpen(true);
             }}
             onEditPlayer={(p) => {
+              if (!permissions.canEditTracker) return;
               setTrackedPlayerToEdit(p);
               setIsAddTrackedModalOpen(true);
             }}
-            onOpenManualMinutes={(p) => setManualMinutesPlayer(p)}
+            onOpenManualMinutes={(p) => {
+              if (!permissions.canEditTracker) return;
+              setManualMinutesPlayer(p);
+            }}
             onUpdateTarget={handleUpdateTarget}
             onRequestDeletePlayer={(p) => {
+              if (!permissions.canEditTracker || !permissions.canDeletePlayers) return;
               setDeleteTarget({
                 isOpen: true,
                 type: 'single_tracked',
@@ -1536,6 +1974,7 @@ export default function App() {
               });
             }}
             onRequestDeleteMultiple={(ids) => {
+              if (!permissions.canEditTracker || !permissions.canDeletePlayers) return;
               setDeleteTarget({
                 isOpen: true,
                 type: 'multiple_tracked',
@@ -1551,10 +1990,10 @@ export default function App() {
         )}
 
         {/* Training Compensation Calculator Tab */}
-        {activeTab === 'compensation' && <TrainingCompensationView />}
+        {activeTab === 'compensation' && permissions.canViewPlayers && <TrainingCompensationView />}
 
-        {/* Agent Settings Tab */}
-        {activeTab === 'agent-settings' && (
+        {/* Agent Settings Tab (Owner Only) */}
+        {activeTab === 'agent-settings' && permissions.isOwner && (
           <AgentSettingsView
             agents={agents}
             onSaveAgents={handleSaveAgents}
@@ -1563,7 +2002,14 @@ export default function App() {
             language={language}
             nextTransferWindowDate={nextTransferWindowDate}
             onChangeNextTransferWindowDate={handleChangeNextTransferWindowDate}
+            isOwner={permissions.isOwner}
+            ownerUid={workspaceUid || currentUser?.uid || ''}
+            teamMembers={teamMembers}
+            onSaveTeamMember={handleSaveTeamMember}
+            onDeleteTeamMember={handleDeleteTeamMember}
           />
+        )}
+        </>
         )}
       </main>
 
@@ -1653,6 +2099,7 @@ export default function App() {
         prospectToEdit={prospectToEdit}
         language={language}
         defaultCurrency={currency}
+        agents={agents}
       />
 
       {/* International / Foreign Female Prospect Modal */}
@@ -1672,18 +2119,23 @@ export default function App() {
         isOpen={!!detailPlayer}
         onClose={() => setDetailPlayer(null)}
         player={detailPlayer}
+        canEditPlayers={permissions.canEditPlayers}
+        canDeletePlayers={permissions.canDeletePlayers}
         onEdit={player => {
+          if (!permissions.canEditPlayers) return;
           setDetailPlayer(null);
           setPlayerModalRosterType(detailPlayerRosterType);
           setPlayerToEdit(player);
           setIsPlayerModalOpen(true);
         }}
         onQuickExtend={player => {
+          if (!permissions.canEditPlayers) return;
           setDetailPlayer(null);
           setQuickExtendRosterType(detailPlayerRosterType);
           setQuickExtendPlayer(player);
         }}
         onRequestDelete={player => {
+          if (!permissions.canDeletePlayers) return;
           setDetailPlayer(null);
           if (detailPlayerRosterType === 'male') {
             handleRequestDeleteMalePlayer(player);
@@ -1700,7 +2152,7 @@ export default function App() {
         rosterType={detailPlayerRosterType}
         nextTransferWindowDate={nextTransferWindowDate}
         trackedPlayers={trackedPlayers}
-        onSaveTrainingAgreement={handleSaveTrainingAgreement}
+        onSaveTrainingAgreement={permissions.canEditPlayers ? handleSaveTrainingAgreement : undefined}
         onNavigateToTracker={() => {
           setDetailPlayer(null);
           setActiveTab('tracker');
@@ -1741,7 +2193,7 @@ export default function App() {
         diagnostic={authDiagnostic}
         onLoginWithGoogle={handleGoogleLogin}
         onLoginWithEmail={handleEmailLogin}
-        onLoginAnonymously={handleAnonymousLogin}
+        onResetPassword={handleResetPassword}
         isSyncing={isCloudSyncing}
       />
 

@@ -21,7 +21,7 @@ import {
   UserCog,
   X
 } from 'lucide-react';
-import { Language, Currency, NavigationTab } from '../types/player';
+import { Language, Currency, NavigationTab, WorkspacePermissions } from '../types/player';
 import { TRANSLATIONS } from '../translations/translations';
 
 interface SidebarProps {
@@ -50,7 +50,19 @@ interface SidebarProps {
   onLogout?: () => void;
   isCloudSyncing?: boolean;
   onExportBackup?: () => void;
+  permissions?: WorkspacePermissions;
+  accessRoleLabel?: string;
 }
+
+const FULL_PERMISSIONS: WorkspacePermissions = {
+  canViewPlayers: true,
+  canCreatePlayers: true,
+  canEditPlayers: true,
+  canDeletePlayers: true,
+  canAccessScouting: true,
+  canEditTracker: true,
+  isOwner: true
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
@@ -77,9 +89,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogin,
   onLogout,
   isCloudSyncing = false,
-  onExportBackup
+  onExportBackup,
+  permissions,
+  accessRoleLabel
 }) => {
   const t = TRANSLATIONS[language];
+  const perms = permissions || FULL_PERMISSIONS;
 
   const handleNavClick = (tab: NavigationTab) => {
     setActiveTab(tab);
@@ -94,28 +109,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.dashboard,
       icon: LayoutDashboard,
       count: undefined,
-      iconColor: 'text-gold-600 dark:text-gold-400'
+      iconColor: 'text-gold-600 dark:text-gold-400',
+      visible: true
     },
     {
       id: 'roster' as NavigationTab,
       label: t.agencyRoster,
       icon: Users,
       count: playerCount,
-      iconColor: 'text-rose-500 dark:text-rose-400'
+      iconColor: 'text-rose-500 dark:text-rose-400',
+      visible: perms.canViewPlayers
     },
     {
       id: 'male-roster' as NavigationTab,
       label: t.maleRoster,
       icon: Users,
       count: malePlayerCount,
-      iconColor: 'text-blue-600 dark:text-blue-400'
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      visible: perms.canViewPlayers
     },
     {
       id: 'in-talk' as NavigationTab,
       label: t.inTalkWith,
       icon: MessageSquare,
       count: prospectCount,
-      iconColor: 'text-violet-600 dark:text-violet-400'
+      iconColor: 'text-violet-600 dark:text-violet-400',
+      visible: perms.canAccessScouting
     },
     {
       id: 'alerts' as NavigationTab,
@@ -123,30 +142,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: BellRing,
       count: totalAlertsHubCount > 0 ? totalAlertsHubCount : undefined,
       isAlert: criticalAlertsCount > 0,
-      iconColor: 'text-rose-500 dark:text-rose-400'
+      iconColor: 'text-rose-500 dark:text-rose-400',
+      visible: perms.canViewPlayers
     },
     {
       id: 'tracker' as NavigationTab,
       label: t.playerTracker,
       icon: Activity,
       count: trackedCount,
-      iconColor: 'text-emerald-600 dark:text-emerald-400'
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      visible: perms.canViewPlayers || perms.canEditTracker
     },
     {
       id: 'compensation' as NavigationTab,
       label: t.trainingCompensation,
       icon: Calculator,
       count: undefined,
-      iconColor: 'text-gold-600 dark:text-gold-400'
+      iconColor: 'text-gold-600 dark:text-gold-400',
+      visible: perms.canViewPlayers
     },
     {
       id: 'agent-settings' as NavigationTab,
       label: t.agentSettings,
       icon: UserCog,
       count: undefined,
-      iconColor: 'text-slate-500 dark:text-slate-400'
+      iconColor: 'text-slate-500 dark:text-slate-400',
+      visible: perms.isOwner
     }
-  ];
+  ].filter(item => item.visible);
+
+  const hasAnyQuickAction = perms.canCreatePlayers || perms.canAccessScouting || perms.canEditTracker;
 
   return (
     <>
@@ -246,65 +271,80 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Quick Actions Launcher */}
-          <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              {language === 'he' ? 'פעולות הוספה' : 'Quick Actions'}
-            </span>
+          {hasAnyQuickAction && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                {language === 'he' ? 'פעולות הוספה' : 'Quick Actions'}
+              </span>
 
-            <button
-              onClick={() => {
-                onOpenAddPlayer();
-                onCloseMobile();
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5 text-rose-500" />
-              <span>{t.addPlayer}</span>
-            </button>
+              {perms.canCreatePlayers && (
+                <>
+                  <button
+                    onClick={() => {
+                      onOpenAddPlayer();
+                      onCloseMobile();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-rose-500" />
+                    <span>{t.addPlayer}</span>
+                  </button>
 
-            <button
-              onClick={() => {
-                onOpenAddMalePlayer();
-                onCloseMobile();
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5 text-blue-500" />
-              <span>{t.addMalePlayer}</span>
-            </button>
+                  <button
+                    onClick={() => {
+                      onOpenAddMalePlayer();
+                      onCloseMobile();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-blue-500" />
+                    <span>{t.addMalePlayer}</span>
+                  </button>
+                </>
+              )}
 
-            <button
-              onClick={() => {
-                onOpenAddProspect();
-                onCloseMobile();
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5 text-violet-500" />
-              <span>{t.addTalkProspect}</span>
-            </button>
+              {perms.canAccessScouting && (
+                <button
+                  onClick={() => {
+                    onOpenAddProspect();
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5 text-violet-500" />
+                  <span>{t.addTalkProspect}</span>
+                </button>
+              )}
 
-            <button
-              onClick={() => {
-                onOpenAddTrackedPlayer();
-                onCloseMobile();
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5 text-emerald-500" />
-              <span>{t.trackPlayerBtn}</span>
-            </button>
-          </div>
+              {perms.canEditTracker && (
+                <button
+                  onClick={() => {
+                    onOpenAddTrackedPlayer();
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>{t.trackPlayerBtn}</span>
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Firebase Cloud Sync & Authentication Status */}
           <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
             {currentUser ? (
               <div className="p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/40 space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                     <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>{isCloudSyncing ? t.syncingStatus : t.syncedCloud}</span>
                   </span>
+                  {accessRoleLabel && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-600/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 truncate">
+                      {accessRoleLabel}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {currentUser.photoURL ? (

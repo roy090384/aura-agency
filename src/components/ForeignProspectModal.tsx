@@ -6,11 +6,14 @@ import {
   ClubOfferEntry,
   ClubOfferStatus,
   PlayerPosition,
+  PlayerGender,
   Language
 } from '../types/player';
 import { ISRAELI_WOMEN_CLUBS, formatWomenClubValue } from '../data/womenClubs';
+import { ISRAELI_MALE_YOUTH_CLUBS, formatMaleClubValue, loadCustomMaleClubs } from '../data/maleClubs';
+import { POSITION_TRANSLATIONS, MALE_POSITION_TRANSLATIONS } from '../translations/translations';
 import { calculateAgeFromBirthDate } from '../utils/birthdayAlerts';
-import { X, Globe, Plus, Trash2, Building2, Link as LinkIcon, Banknote, ShieldCheck } from 'lucide-react';
+import { X, Globe, Plus, Trash2, Building2, Link as LinkIcon, Banknote, ShieldCheck, Users } from 'lucide-react';
 
 interface ForeignProspectModalProps {
   isOpen: boolean;
@@ -74,6 +77,7 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
 }) => {
   const isHe = language === 'he';
 
+  const [gender, setGender] = useState<PlayerGender>('Female');
   const [fullName, setFullName] = useState('');
   const [passportCategory, setPassportCategory] = useState('EU Passport');
   const [nationalityPassport, setNationalityPassport] = useState('');
@@ -97,6 +101,7 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
 
   useEffect(() => {
     if (prospectToEdit) {
+      setGender(prospectToEdit.gender === 'Male' ? 'Male' : 'Female');
       setFullName(prospectToEdit.fullName);
       setPassportCategory(prospectToEdit.passportCategory || 'EU Passport');
       setNationalityPassport(prospectToEdit.nationalityPassport);
@@ -117,6 +122,7 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
       setProfileLink(prospectToEdit.profileLink || '');
       setAgentNotes(prospectToEdit.agentNotes || '');
     } else {
+      setGender('Female');
       setFullName('');
       setPassportCategory('EU Passport');
       setNationalityPassport('');
@@ -139,6 +145,11 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
   }, [prospectToEdit, isOpen]);
 
   if (!isOpen) return null;
+
+  const isMale = gender === 'Male';
+  const posTranslations = isMale ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
+  const customMaleClubs = isMale ? loadCustomMaleClubs() : [];
+  const maleOfferSuggestions = isMale ? [...ISRAELI_MALE_YOUTH_CLUBS, ...customMaleClubs] : [];
 
   const toggleMarket = (market: TargetMarketOption) => {
     setTargetMarkets(prev =>
@@ -198,13 +209,14 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
     const saved: ForeignProspect = {
       id: prospectToEdit ? prospectToEdit.id : `fpros-${Date.now()}`,
       fullName: fullName.trim(),
+      gender,
       nationalityPassport: nationalityPassport.trim(),
       passportCategory,
       age: Number(age) || 22,
       birthDate: birthDate || undefined,
       primaryPosition,
       secondaryPosition: secondaryPosition || undefined,
-      currentClub: currentClub.trim() || (isHe ? 'שחקנית חופשית' : 'Free Agent'),
+      currentClub: currentClub.trim() || (isHe ? (isMale ? 'שחקן חופשי' : 'שחקנית חופשית') : 'Free Agent'),
       currentLeague: currentLeague.trim() || '-',
       targetMarkets: targetMarkets.length > 0 ? targetMarkets : ['Israel - Premier League'],
       negotiationStatus,
@@ -234,11 +246,11 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                 {prospectToEdit
                   ? isHe
-                    ? 'עריכת מועמדת זרה / בינלאומית'
+                    ? isMale ? 'עריכת מועמד זר / בינלאומי' : 'עריכת מועמדת זרה / בינלאומית'
                     : 'Edit International / Foreign Prospect'
                   : isHe
-                  ? 'הוספת מועמדת זרה / בינלאומית (ישראל / אירופה)'
-                  : 'Add International / Foreign Female Prospect'}
+                  ? isMale ? 'הוספת מועמד זר / בינלאומי (ישראל / אירופה)' : 'הוספת מועמדת זרה / בינלאומית (ישראל / אירופה)'
+                  : isMale ? 'Add International / Foreign Male Prospect' : 'Add International / Foreign Female Prospect'}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isHe
@@ -260,10 +272,45 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[78vh] overflow-y-auto">
+          {/* Gender Toggle: Female vs Male */}
+          <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-sky-600" />
+                <span>{isHe ? 'מגזר שחקן (נשים / גברים)' : 'Player Category (Female / Male)'}</span>
+              </span>
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                {isHe
+                  ? 'בחירת גברים תעדכן את הצעות הקבוצות בישראל למועדוני גברים'
+                  : 'Selecting Male switches Israeli club pitch suggestions to Men clubs'}
+              </span>
+            </div>
+            <div className="flex items-center p-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+              <button
+                type="button"
+                onClick={() => setGender('Female')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  !isMale ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                {isHe ? 'נשים' : 'Female'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setGender('Male')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  isMale ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                {isHe ? 'גברים' : 'Male'}
+              </button>
+            </div>
+          </div>
+
           {/* 1. Identity & Passport */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
-              {isHe ? 'פרטי שחקנית ודרכון (למכסת זרות)' : 'Player Identity & Passport Quota'}
+              {isHe ? (isMale ? 'פרטי שחקן ודרכון (למכסת זרים)' : 'פרטי שחקנית ודרכון (למכסת זרות)') : 'Player Identity & Passport Quota'}
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -361,7 +408,7 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
               >
                 {POSITIONS.map(pos => (
                   <option key={pos} value={pos}>
-                    {pos}
+                    {isHe ? (posTranslations.he[pos] || pos) : pos}
                   </option>
                 ))}
               </select>
@@ -379,7 +426,7 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
                 <option value="">{isHe ? 'ללא' : 'None'}</option>
                 {POSITIONS.map(pos => (
                   <option key={pos} value={pos}>
-                    {pos}
+                    {isHe ? (posTranslations.he[pos] || pos) : pos}
                   </option>
                 ))}
               </select>
@@ -492,7 +539,7 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  list="women-clubs-offer-suggestions"
+                  list="foreign-clubs-offer-suggestions"
                   value={draftClubName}
                   onChange={e => setDraftClubName(e.target.value)}
                   onKeyDown={e => {
@@ -501,13 +548,21 @@ export const ForeignProspectModal: React.FC<ForeignProspectModalProps> = ({
                       handleAddClubOffer();
                     }
                   }}
-                  placeholder={isHe ? 'לדוגמה: מ.ס. קריית גת / Braga' : 'e.g. Kiryat Gat / FC Basel'}
+                  placeholder={
+                    isMale
+                      ? isHe ? 'לדוגמה: מכבי חיפה / FC Basel' : 'e.g. Maccabi Haifa / FC Basel'
+                      : isHe ? 'לדוגמה: מ.ס. קריית גת / Braga' : 'e.g. Kiryat Gat / FC Basel'
+                  }
                   className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
-                <datalist id="women-clubs-offer-suggestions">
-                  {ISRAELI_WOMEN_CLUBS.map(c => (
-                    <option key={c.id} value={formatWomenClubValue(c, language)} />
-                  ))}
+                <datalist id="foreign-clubs-offer-suggestions">
+                  {isMale
+                    ? maleOfferSuggestions.map(c => (
+                        <option key={c.id} value={formatMaleClubValue(c, language)} />
+                      ))
+                    : ISRAELI_WOMEN_CLUBS.map(c => (
+                        <option key={c.id} value={formatWomenClubValue(c, language)} />
+                      ))}
                 </datalist>
               </div>
 

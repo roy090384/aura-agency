@@ -19,7 +19,7 @@ import {
   BellRing,
   UserCog
 } from 'lucide-react';
-import { Language, Currency, NavigationTab } from '../types/player';
+import { Language, Currency, NavigationTab, WorkspacePermissions } from '../types/player';
 import { TRANSLATIONS } from '../translations/translations';
 
 interface TopHeaderProps {
@@ -44,7 +44,18 @@ interface TopHeaderProps {
   onLogin?: () => void;
   onLogout?: () => void;
   isCloudSyncing?: boolean;
+  permissions?: WorkspacePermissions;
 }
+
+const FULL_PERMISSIONS: WorkspacePermissions = {
+  canViewPlayers: true,
+  canCreatePlayers: true,
+  canEditPlayers: true,
+  canDeletePlayers: true,
+  canAccessScouting: true,
+  canEditTracker: true,
+  isOwner: true
+};
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   activeTab,
@@ -67,9 +78,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   currentUser,
   onLogin,
   onLogout,
-  isCloudSyncing = false
+  isCloudSyncing = false,
+  permissions
 }) => {
   const t = TRANSLATIONS[language];
+  const perms = permissions || FULL_PERMISSIONS;
 
   const getSectionTitle = () => {
     switch (activeTab) {
@@ -176,37 +189,45 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             
             {/* Quick Context Add Button */}
             {activeTab === 'tracker' ? (
-              <button
-                onClick={onOpenAddTrackedPlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{t.trackPlayerBtn}</span>
-              </button>
+              perms.canEditTracker && (
+                <button
+                  onClick={onOpenAddTrackedPlayer}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{t.trackPlayerBtn}</span>
+                </button>
+              )
             ) : activeTab === 'in-talk' ? (
-              <button
-                onClick={onOpenAddProspect}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{t.addTalkProspect}</span>
-              </button>
+              perms.canAccessScouting && (
+                <button
+                  onClick={onOpenAddProspect}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{t.addTalkProspect}</span>
+                </button>
+              )
             ) : activeTab === 'male-roster' ? (
-              <button
-                onClick={onOpenAddMalePlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>{t.addMalePlayer}</span>
-              </button>
+              perms.canCreatePlayers && (
+                <button
+                  onClick={onOpenAddMalePlayer}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>{t.addMalePlayer}</span>
+                </button>
+              )
             ) : (
-              <button
-                onClick={onOpenAddPlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-gold-600 hover:bg-gold-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>{t.addPlayer}</span>
-              </button>
+              perms.canCreatePlayers && (
+                <button
+                  onClick={onOpenAddPlayer}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-gold-600 hover:bg-gold-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>{t.addPlayer}</span>
+                </button>
+              )
             )}
 
             {/* Cloud Sync Status Badge */}

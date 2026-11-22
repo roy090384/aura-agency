@@ -5,7 +5,7 @@ import {
   signInWithPopup, 
   signOut,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInAnonymously
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
@@ -29,14 +29,11 @@ export async function loginWithGoogle() {
 }
 
 export async function loginWithEmail(email: string, pass: string) {
-  try {
-    return await signInWithEmailAndPassword(auth, email, pass);
-  } catch (err: any) {
-    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-      return await createUserWithEmailAndPassword(auth, email, pass);
-    }
-    throw err;
-  }
+  return signInWithEmailAndPassword(auth, email.trim(), pass);
+}
+
+export async function resetPasswordWithEmail(email: string) {
+  return sendPasswordResetEmail(auth, email.trim());
 }
 
 export async function loginAnonymouslyUser() {
