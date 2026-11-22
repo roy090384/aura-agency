@@ -142,9 +142,10 @@ function formatCompactDayTime(kickoffIso: string, language: Language): string {
   }
 }
 
-const OpponentCrest: React.FC<{ logoUrl?: string; opponentName: string }> = ({
+const OpponentCrest: React.FC<{ logoUrl?: string; opponentName: string; sizeClass?: string }> = ({
   logoUrl,
-  opponentName
+  opponentName,
+  sizeClass = 'w-7 h-7'
 }) => {
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -154,7 +155,7 @@ const OpponentCrest: React.FC<{ logoUrl?: string; opponentName: string }> = ({
 
   if (logoUrl && !imgFailed) {
     return (
-      <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 flex items-center justify-center shrink-0 shadow-xs">
+      <div className={`${sizeClass} rounded-full bg-white ring-2 ring-slate-900 p-0.5 flex items-center justify-center shrink-0 shadow-xs`}>
         <img
           src={logoUrl}
           alt={opponentName}
@@ -169,9 +170,9 @@ const OpponentCrest: React.FC<{ logoUrl?: string; opponentName: string }> = ({
   return (
     <div
       title={opponentName}
-      className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center shrink-0 text-slate-600 dark:text-slate-300"
+      className={`${sizeClass} rounded-full bg-slate-800 ring-2 ring-slate-900 border border-slate-700 flex flex-col items-center justify-center shrink-0 text-slate-200`}
     >
-      <Shield className="w-3 h-3 text-slate-400 dark:text-slate-500 -mb-0.5" />
+      <Shield className="w-2.5 h-2.5 text-slate-400 -mb-0.5" />
       <span className="text-[7px] font-extrabold leading-none tracking-tighter">
         {getClubMonogram(opponentName)}
       </span>
@@ -191,6 +192,7 @@ export const NextMatchWindow: React.FC<NextMatchWindowProps> = ({
   const isHe = language === 'he';
 
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [showIdleList, setShowIdleList] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerTab, setPickerTab] = useState<'all' | 'female' | 'male'>('all');
   const [matchMap, setMatchMap] = useState<Record<string, NextMatchInfo>>(() => loadCachedMatches());
@@ -415,35 +417,82 @@ export const NextMatchWindow: React.FC<NextMatchWindowProps> = ({
   }, [allRosterOptions, pickerSearch, pickerTab]);
 
   return (
-    <div className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 w-full max-w-[640px]">
-      <div className="h-0.5 w-full bg-gradient-to-r from-emerald-500 via-gold-500 to-blue-500" />
+    <div className="relative overflow-hidden rounded-xl bg-slate-950 text-white border border-slate-800/90 shadow-md w-full max-w-[660px]">
+      {/* Top Broadcast Hairline */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-emerald-500 via-gold-400 to-sky-500" />
+      {/* Subtle Ambient Broadcast Glow */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-12 -left-10 w-44 h-28 rounded-full bg-emerald-500/10 blur-2xl"
+      />
 
-      {/* Compact Graphic Header */}
-      <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+      {/* Compact Single-Line Header */}
+      <div className="relative px-3 py-2 border-b border-white/10 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-6 h-6 rounded-md bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center shrink-0">
-            <CalendarClock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <div className="w-6 h-6 rounded-md bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center shrink-0">
+            <CalendarClock className="w-3.5 h-3.5 text-emerald-400" />
           </div>
-          <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-            {isHe ? 'מרכז המשחקים (7 ימים)' : 'Match Center · 7d'}
+          <h2 className="text-xs font-bold tracking-tight text-white truncate">
+            {isHe ? 'מרכז משחקים' : 'Match Center'}
           </h2>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono tabular-nums bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50 shrink-0">
+          <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-bold font-mono tabular-nums text-emerald-300 shrink-0">
             {hasCarousel
-              ? `${safeCarouselIndex + 1}–${safeCarouselIndex + visibleCarouselNodes.length} / ${timelineNodes.length}`
-              : `${timelineNodes.length} ${isHe ? 'משחקים' : timelineNodes.length === 1 ? 'match' : 'matches'}`}
+              ? `${safeCarouselIndex + 1}–${safeCarouselIndex + visibleCarouselNodes.length}/${timelineNodes.length}`
+              : `${timelineNodes.length} · 7d`}
           </span>
+
+          {itemsWithoutUpcoming7d.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowIdleList(prev => !prev)}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors shrink-0 ${
+                showIdleList
+                  ? 'bg-slate-800 border-gold-400/50 text-gold-300'
+                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+              }`}
+              title={isHe ? 'שחקנים ללא משחק ב-7 הימים הקרובים' : 'Players with no match in the next 7 days'}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+              <span className="font-mono tabular-nums">
+                {itemsWithoutUpcoming7d.length} {isHe ? 'פנויים' : 'idle'}
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {hasCarousel && (
+            <div className="inline-flex items-center gap-0.5 bg-white/5 border border-white/10 rounded-md p-0.5">
+              <button
+                type="button"
+                aria-label={isHe ? 'משחק קודם' : 'Previous matches'}
+                disabled={safeCarouselIndex === 0}
+                onClick={() => setCarouselIndex(prev => Math.max(0, Math.min(prev, maxCarouselIndex) - 1))}
+                className="w-5 h-5 rounded flex items-center justify-center text-slate-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-180" />
+              </button>
+              <button
+                type="button"
+                aria-label={isHe ? 'משחק הבא' : 'Next matches'}
+                disabled={safeCarouselIndex >= maxCarouselIndex}
+                onClick={() => setCarouselIndex(prev => Math.min(maxCarouselIndex, prev + 1))}
+                className="w-5 h-5 rounded flex items-center justify-center text-slate-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
+              </button>
+            </div>
+          )}
+
           {selectedItems.length > 0 && (
             <button
               type="button"
               disabled={isLoading}
               title={isHe ? 'רענן מאתרי ספורט' : 'Refresh from sports sites'}
               onClick={() => fetchMatchesForItems(selectedItems, true)}
-              className="p-1 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-50"
+              className="w-6 h-6 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-emerald-400 transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
           )}
 
@@ -453,12 +502,12 @@ export const NextMatchWindow: React.FC<NextMatchWindowProps> = ({
               setPickerTab(scope === 'all' ? 'all' : scope);
               setIsPickerOpen(true);
             }}
-            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md bg-gold-600 hover:bg-gold-700 text-white transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md bg-gold-600 hover:bg-gold-500 text-white transition-colors whitespace-nowrap"
           >
             <Users className="w-3 h-3" />
             <span>{isHe ? 'שחקנים' : 'Players'}</span>
             {selectedItems.length > 0 && (
-              <span className="px-1 rounded bg-white/20 text-[10px] font-mono tabular-nums">
+              <span className="px-1 rounded bg-black/25 text-[10px] font-mono tabular-nums">
                 {selectedItems.length}
               </span>
             )}
@@ -467,23 +516,75 @@ export const NextMatchWindow: React.FC<NextMatchWindowProps> = ({
       </div>
 
       {fetchError && (
-        <div className="px-4 py-1.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2">
+        <div className="px-3 py-1 bg-amber-950/60 border-b border-amber-500/30 text-[11px] text-amber-200 flex items-center justify-between gap-2">
           <span className="truncate">{fetchError}</span>
           <button
             type="button"
             onClick={() => setFetchError(null)}
-            className="text-amber-700 dark:text-amber-300 hover:underline font-semibold shrink-0"
+            className="text-amber-300 hover:underline font-semibold shrink-0"
           >
             {isHe ? 'סגור' : 'Dismiss'}
           </button>
         </div>
       )}
 
-      {/* Compact Timeline Body */}
-      <div className="px-3.5 py-2.5">
+      {/* Collapsible Idle Players Drawer (Only when clicked) */}
+      {showIdleList && itemsWithoutUpcoming7d.length > 0 && (
+        <div className="px-3 py-2 bg-slate-900/95 border-b border-white/10 flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mr-1 rtl:mr-0 rtl:ml-1">
+            {isHe ? 'ללא משחק ב-7 ימים:' : 'No match in 7d:'}
+          </span>
+          {itemsWithoutUpcoming7d.map(option => {
+            const isFemale = option.rosterType === 'female';
+            const lastName = getPlayerLastName(option.player.name);
+            const cached = matchMap[option.key];
+            const fallbackUrl =
+              cached?.sourceUrl ||
+              cached?.lookupLinks?.[0]?.url ||
+              `https://www.fotmob.com/search?q=${encodeURIComponent(option.player.clubName)}`;
+
+            return (
+              <span
+                key={option.key}
+                className="inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded bg-white/5 border border-white/10 text-[11px] text-slate-200"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${isFemale ? 'bg-rose-400' : 'bg-sky-400'}`} />
+                <button
+                  type="button"
+                  onClick={() => onSelectPlayer(option.player, option.rosterType)}
+                  title={`${option.player.name} · ${option.player.clubName}`}
+                  className="font-semibold hover:text-gold-300"
+                >
+                  {lastName}
+                </button>
+                <a
+                  href={fallbackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={option.player.clubName}
+                  className="text-slate-400 hover:text-emerald-400"
+                >
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handleTogglePlayer(option.key)}
+                  title={isHe ? 'הסר' : 'Remove'}
+                  className="text-slate-500 hover:text-rose-400"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Compact Bento Dock Body */}
+      <div className="px-3 py-2.5">
         {selectedItems.length === 0 ? (
-          <div className="flex items-center justify-between gap-2.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/30 px-3 py-2">
-            <span className="text-[11px] text-slate-600 dark:text-slate-300">
+          <div className="flex items-center justify-between gap-2.5 rounded-lg border border-dashed border-white/15 bg-white/5 px-3 py-2">
+            <span className="text-[11px] text-slate-300">
               {isHe
                 ? 'בחרו שחקנים להצגת משחקים ב-7 הימים הקרובים.'
                 : 'Select players to view fixtures in the next 7 days.'}
@@ -491,264 +592,163 @@ export const NextMatchWindow: React.FC<NextMatchWindowProps> = ({
             <button
               type="button"
               onClick={() => setIsPickerOpen(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md bg-gold-600 hover:bg-gold-700 text-white transition-colors shrink-0"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md bg-gold-600 hover:bg-gold-500 text-white transition-colors shrink-0"
             >
               <Plus className="w-3 h-3" />
               <span>{isHe ? 'בחר שחקנים' : 'Select'}</span>
             </button>
           </div>
         ) : visibleSelectedItems.length === 0 ? (
-          <div className="py-2 text-center text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="py-2 text-center text-[11px] text-slate-400">
             {isHe
               ? 'השחקנים שנבחרו שייכים לחטיבה השנייה. העבר ל"הכל" או בחר שחקנים כאן.'
               : 'Selected players are in the other division filter. Switch filter to "All" or pick players here.'}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {/* 3-Box Carousel Timeline */}
-            {timelineNodes.length > 0 ? (
-              <>
-              <div className="flex items-center gap-1.5">
-                {hasCarousel && (
-                  <button
-                    type="button"
-                    aria-label={isHe ? 'משחק קודם' : 'Previous matches'}
-                    disabled={safeCarouselIndex === 0}
-                    onClick={() => setCarouselIndex(prev => Math.max(0, Math.min(prev, maxCarouselIndex) - 1))}
-                    className="w-7 h-16 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
-                  </button>
-                )}
+        ) : timelineNodes.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {visibleCarouselNodes.map(node => {
+              const { option, fixture, countdown } = node;
+              const { player, rosterType, key } = option;
+              const isFemale = rosterType === 'female';
+              const lastName = getPlayerLastName(player.name);
 
-                <div className="flex-1 min-w-0 relative">
-                  {/* Horizontal Timeline Track Line */}
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none hidden sm:block absolute top-[12px] left-3 right-3 h-px bg-slate-200 dark:bg-slate-700/80"
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {visibleCarouselNodes.map(node => {
-                      const { option, fixture, countdown } = node;
-                      const { player, rosterType, key } = option;
-                      const isFemale = rosterType === 'female';
-                      const lastName = getPlayerLastName(player.name);
+              const cardTone = countdown.isLive
+                ? 'border-rose-500/70 bg-gradient-to-br from-rose-950/60 via-slate-900 to-slate-900 shadow-[0_0_14px_-4px_rgba(244,63,94,0.6)]'
+                : countdown.isSoon
+                ? 'border-gold-500/45 bg-gradient-to-br from-emerald-950/35 via-slate-900 to-slate-900 hover:border-gold-400/75'
+                : 'border-white/10 bg-slate-900/90 hover:border-white/25';
 
-                      return (
-                        <div key={node.nodeId} className="relative pt-4 min-w-0 group/node">
-                          {/* Timeline Countdown Badge + Day/Time */}
-                          <div className="absolute top-0 left-1.5 right-1.5 flex items-center justify-between gap-1">
-                            <span
-                              className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-extrabold font-mono tabular-nums shadow-xs border ${
-                                countdown.isLive
-                                  ? 'bg-rose-600 text-white border-rose-500'
-                                  : countdown.isSoon
-                                  ? 'bg-emerald-600 text-white border-emerald-500'
-                                  : 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-700 dark:border-white'
-                              }`}
-                            >
-                              {countdown.label}
-                            </span>
-                            <span className="text-[10px] font-mono tabular-nums text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-1 rounded truncate">
-                              {formatCompactDayTime(fixture.kickoffIso, language)}
-                            </span>
-                          </div>
-
-                          {/* Compact Graphic Match Box */}
-                          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 hover:border-gold-400 dark:hover:border-gold-500/60 transition-colors p-2 flex flex-col gap-1.5">
-                            {/* Quick Unpin Hover Button */}
-                            <button
-                              type="button"
-                              title={isHe ? 'הסר שחקן' : `Remove ${player.name}`}
-                              onClick={() => handleTogglePlayer(key)}
-                              className="absolute top-1 right-1 rtl:right-auto rtl:left-1 opacity-0 group-hover/node:opacity-100 p-0.5 rounded bg-white/80 dark:bg-slate-900/80 text-slate-400 hover:text-rose-600 transition-opacity"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-
-                            {/* Graphic Avatar vs Opponent Logo Row */}
-                            <div className="flex items-center justify-between gap-1">
-                              <button
-                                type="button"
-                                onClick={() => onSelectPlayer(player, rosterType)}
-                                title={`${player.name} · ${player.clubName}`}
-                                className="shrink-0 focus:outline-hidden"
-                              >
-                                {player.photoUrl ? (
-                                  <img
-                                    src={player.photoUrl}
-                                    alt={player.name}
-                                    className={`w-8 h-8 rounded-full object-cover border-2 transition-transform group-hover/node:scale-105 ${
-                                      isFemale ? 'border-rose-500' : 'border-blue-500'
-                                    }`}
-                                  />
-                                ) : (
-                                  <div
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white border-2 ${
-                                      isFemale
-                                        ? 'bg-rose-600 border-rose-400'
-                                        : 'bg-blue-600 border-blue-400'
-                                    }`}
-                                  >
-                                    {lastName.slice(0, 2).toUpperCase()}
-                                  </div>
-                                )}
-                              </button>
-
-                              <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-0.5">
-                                {fixture.isHome === true ? (
-                                  <Home className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                                ) : fixture.isHome === false ? (
-                                  <Plane className="w-2.5 h-2.5 text-sky-600 dark:text-sky-400" />
-                                ) : null}
-                                <span className="text-[8px] font-bold uppercase tracking-wider leading-tight">
-                                  {fixture.isHome === false ? '@' : 'vs'}
-                                </span>
-                              </div>
-
-                              <OpponentCrest
-                                logoUrl={fixture.opponentLogoUrl}
-                                opponentName={fixture.opponent}
-                              />
-                            </div>
-
-                            {/* Player Last Name + Opponent + Link */}
-                            <div className="flex items-center justify-between gap-1 min-w-0">
-                              <div className="min-w-0 flex-1">
-                                <button
-                                  type="button"
-                                  onClick={() => onSelectPlayer(player, rosterType)}
-                                  title={`${player.name} (${player.clubName})`}
-                                  className="block w-full text-left rtl:text-right text-[11px] font-extrabold text-slate-900 dark:text-white hover:text-gold-600 dark:hover:text-gold-400 truncate transition-colors"
-                                >
-                                  {lastName}
-                                </button>
-                                <div
-                                  title={fixture.opponent}
-                                  className="text-[10px] font-medium text-slate-500 dark:text-slate-400 truncate"
-                                >
-                                  {fixture.opponent}
-                                </div>
-                              </div>
-
-                              {fixture.sourceUrl && (
-                                <a
-                                  href={fixture.sourceUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title={fixture.competition || fixture.sourceName || 'View match'}
-                                  className="p-0.5 rounded text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-white dark:hover:bg-slate-800 shrink-0 transition-colors"
-                                >
-                                  <ExternalLink className="w-2.5 h-2.5" />
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {hasCarousel && (
-                  <button
-                    type="button"
-                    aria-label={isHe ? 'משחק הבא' : 'Next matches'}
-                    disabled={safeCarouselIndex >= maxCarouselIndex}
-                    onClick={() => setCarouselIndex(prev => Math.min(maxCarouselIndex, prev + 1))}
-                    className="w-7 h-16 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRight className="w-4 h-4 rtl:rotate-180" />
-                  </button>
-                )}
-              </div>
-              {hasCarousel && (
-                <div className="flex items-center justify-center gap-1 pt-1">
-                  {Array.from({ length: maxCarouselIndex + 1 }).map((_, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      aria-label={`${isHe ? 'עמוד' : 'Slide'} ${idx + 1}`}
-                      onClick={() => setCarouselIndex(idx)}
-                      className={`h-1.5 rounded-full transition-all ${
-                        idx === safeCarouselIndex
-                          ? 'w-4 bg-emerald-600 dark:bg-emerald-400'
-                          : 'w-1.5 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600'
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-              </>
-            ) : (
-              <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
-                <span>
-                  {isLoading
-                    ? isHe
-                      ? 'טוען משחקים ב-7 הימים הקרובים...'
-                      : 'Checking fixtures for the next 7 days...'
-                    : isHe
-                    ? 'אין משחקים מתוזמנים ב-7 הימים הקרובים לשחקנים שנבחרו.'
-                    : 'No fixtures scheduled within the next 7 days for selected players.'}
-                </span>
-              </div>
-            )}
-
-            {/* Compact Unmatched / >7d Selected Player Chips */}
-            {itemsWithoutUpcoming7d.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800/80">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mr-1 rtl:mr-0 rtl:ml-1">
-                  {isHe ? 'ללא משחק ב-7 ימים:' : 'No match in 7d:'}
-                </span>
-                {itemsWithoutUpcoming7d.map(option => {
-                  const isFemale = option.rosterType === 'female';
-                  const lastName = getPlayerLastName(option.player.name);
-                  const cached = matchMap[option.key];
-                  const fallbackUrl =
-                    cached?.sourceUrl ||
-                    cached?.lookupLinks?.[0]?.url ||
-                    `https://www.fotmob.com/search?q=${encodeURIComponent(option.player.clubName)}`;
-
-                  return (
-                    <span
-                      key={option.key}
-                      className="inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-md text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700"
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          isFemale ? 'bg-rose-500' : 'bg-blue-500'
-                        }`}
-                      />
+              return (
+                <div
+                  key={node.nodeId}
+                  className={`relative group/node rounded-lg border p-2 transition-all flex flex-col justify-between gap-1.5 min-w-0 ${cardTone}`}
+                >
+                  {/* Top Row: Overlapping Avatar + Crest Lockup & Countdown */}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center min-w-0">
                       <button
                         type="button"
-                        onClick={() => onSelectPlayer(option.player, option.rosterType)}
-                        title={`${option.player.name} · ${option.player.clubName}`}
-                        className="font-bold hover:text-gold-600 dark:hover:text-gold-400"
+                        onClick={() => onSelectPlayer(player, rosterType)}
+                        title={`${player.name} · ${player.clubName}`}
+                        className="relative z-10 shrink-0 focus:outline-hidden"
+                      >
+                        {player.photoUrl ? (
+                          <img
+                            src={player.photoUrl}
+                            alt={player.name}
+                            className={`w-7 h-7 rounded-full object-cover ring-2 transition-transform group-hover/node:scale-105 ${
+                              isFemale ? 'ring-rose-500' : 'ring-sky-500'
+                            }`}
+                          />
+                        ) : (
+                          <div
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white ring-2 ${
+                              isFemale ? 'bg-rose-600 ring-rose-400' : 'bg-sky-600 ring-sky-400'
+                            }`}
+                          >
+                            {lastName.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </button>
+
+                      <div className="-ml-2 rtl:ml-0 rtl:-mr-2 relative z-0 shrink-0">
+                        <OpponentCrest
+                          logoUrl={fixture.opponentLogoUrl}
+                          opponentName={fixture.opponent}
+                          sizeClass="w-7 h-7"
+                        />
+                      </div>
+
+                      {fixture.isHome !== undefined && (
+                        <span
+                          title={fixture.isHome ? (isHe ? 'בית' : 'Home') : isHe ? 'חוץ' : 'Away'}
+                          className={`ml-1.5 rtl:ml-0 rtl:mr-1.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                            fixture.isHome
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                          }`}
+                        >
+                          {fixture.isHome ? <Home className="w-2.5 h-2.5" /> : <Plane className="w-2.5 h-2.5" />}
+                        </span>
+                      )}
+                    </div>
+
+                    <span
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold font-mono tabular-nums shrink-0 ${
+                        countdown.isLive
+                          ? 'bg-rose-600 text-white'
+                          : countdown.isSoon
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-white/10 text-slate-200 border border-white/10'
+                      }`}
+                    >
+                      {countdown.isLive && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                      )}
+                      {countdown.label}
+                    </span>
+                  </div>
+
+                  {/* Bottom Row: Last Name + Opponent + Kickoff */}
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onSelectPlayer(player, rosterType)}
+                        title={`${player.name} (${player.clubName})`}
+                        className="text-left rtl:text-right text-xs font-extrabold text-white hover:text-gold-300 truncate transition-colors"
                       >
                         {lastName}
                       </button>
-                      <a
-                        href={fallbackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={option.player.clubName}
-                        className="text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
-                      >
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePlayer(option.key)}
-                        title={isHe ? 'הסר' : 'Remove'}
-                        className="text-slate-400 hover:text-rose-600"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
+
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {fixture.sourceUrl && (
+                          <a
+                            href={fixture.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={fixture.competition || fixture.sourceName || 'View match'}
+                            className="p-0.5 rounded text-slate-400 hover:text-emerald-400 transition-colors"
+                          >
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          title={isHe ? 'הסר שחקן' : `Remove ${player.name}`}
+                          onClick={() => handleTogglePlayer(key)}
+                          className="opacity-0 group-hover/node:opacity-100 p-0.5 rounded text-slate-500 hover:text-rose-400 transition-opacity"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-1 text-[10px] text-slate-400 min-w-0 mt-0.5">
+                      <span title={fixture.opponent} className="truncate font-medium">
+                        {fixture.isHome === false ? '@ ' : 'vs '}
+                        {fixture.opponent}
+                      </span>
+                      <span className="font-mono tabular-nums text-[9.5px] text-slate-500 shrink-0">
+                        {formatCompactDayTime(fixture.kickoffIso, language)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-white/15 bg-white/5 px-3 py-2 text-xs text-slate-300 flex items-center justify-between gap-2">
+            <span>
+              {isLoading
+                ? isHe
+                  ? 'טוען משחקים ב-7 הימים הקרובים...'
+                  : 'Checking fixtures for the next 7 days...'
+                : isHe
+                ? 'אין משחקים מתוזמנים ב-7 הימים הקרובים לשחקנים שנבחרו.'
+                : 'No fixtures scheduled within the next 7 days for selected players.'}
+            </span>
           </div>
         )}
       </div>
