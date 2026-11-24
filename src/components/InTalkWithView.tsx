@@ -7,6 +7,7 @@ import {
   MALE_POSITION_TRANSLATIONS,
   getYouthBadgeColor 
 } from '../translations/translations';
+import { formatSalary } from '../utils/currency';
 import { 
   Globe, 
   MapPin, 
@@ -23,6 +24,10 @@ import {
   FileText, 
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
+  GripVertical,
+  Columns3,
+  LayoutGrid,
   TrendingUp,
   Award,
   Edit,
@@ -40,6 +45,7 @@ interface InTalkWithViewProps {
   onWatchVideo: (prospect: TalkProspect) => void;
   onOpenConversationLog: (prospect: TalkProspect) => void;
   onSignProspectToRoster: (prospect: TalkProspect) => void;
+  onUpdateProspectStage?: (prospect: TalkProspect, nextStage: TalkStage) => void;
   onOpenAddForeignProspect: () => void;
   onEditForeignProspect: (prospect: ForeignProspect) => void;
   onUpdateForeignProspect: (prospect: ForeignProspect) => void;
@@ -59,6 +65,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
   onWatchVideo,
   onOpenConversationLog,
   onSignProspectToRoster,
+  onUpdateProspectStage,
   onOpenAddForeignProspect,
   onEditForeignProspect,
   onUpdateForeignProspect,
@@ -69,6 +76,7 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
   currency
 }) => {
   const t = TRANSLATIONS[language];
+  const isHe = language === 'he';
   const [internalSubTab, setInternalSubTab] = useState<'candidates' | 'foreign'>('candidates');
   const inTalkSubTab = subTab ?? internalSubTab;
   const setInTalkSubTab = (tab: 'candidates' | 'foreign') => {
@@ -81,7 +89,9 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [youthFilter, setYouthFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeView, setActiveView] = useState<'cards' | 'stages'>('cards');
+  const [activeView, setActiveView] = useState<'cards' | 'stages'>('stages');
+  const [draggedProspectId, setDraggedProspectId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<TalkStage | null>(null);
 
   // Counts
   const localCount = prospects.filter(p => p.scope === 'Local').length;
@@ -97,6 +107,16 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
     'Contract Drafting',
     'Signed'
   ];
+
+  const STAGE_ACCENTS: Record<TalkStage, { bar: string; labelHe: string }> = {
+    'Initial Contact': { bar: 'bg-slate-400 dark:bg-slate-500', labelHe: 'פנייה ראשונית' },
+    'Scouting & Video': { bar: 'bg-sky-500', labelHe: 'סקאוטינג ווידאו' },
+    'Meeting Scheduled': { bar: 'bg-indigo-500', labelHe: 'פגישה מתוכננת' },
+    'Offer Proposed': { bar: 'bg-amber-500', labelHe: 'הצעה הוגשה' },
+    'Contract Drafting': { bar: 'bg-gold-500', labelHe: 'טיוטת חוזה' },
+    'Signed': { bar: 'bg-emerald-500', labelHe: 'הוחתם בסוכנות' },
+    'Declined': { bar: 'bg-rose-500', labelHe: 'נדחה / בוטל' }
+  };
 
   // Filtered prospects
   const filteredProspects = useMemo(() => {
@@ -354,18 +374,30 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
             <button
-              onClick={() => setActiveView('cards')}
-              className={`px-2.5 py-1 text-xs font-medium rounded ${activeView === 'cards' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-500'}`}
+              type="button"
+              onClick={() => setActiveView('stages')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                activeView === 'stages'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
             >
-              {t.detailedCards}
+              <Columns3 className="w-3.5 h-3.5" />
+              <span>{isHe ? 'לוח קנבן' : 'Pipeline Board'}</span>
             </button>
             <button
-              onClick={() => setActiveView('stages')}
-              className={`px-2.5 py-1 text-xs font-medium rounded ${activeView === 'stages' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-500'}`}
+              type="button"
+              onClick={() => setActiveView('cards')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                activeView === 'cards'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
             >
-              {t.stagePipeline}
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>{t.detailedCards}</span>
             </button>
           </div>
         </div>
@@ -399,128 +431,365 @@ export const InTalkWithView: React.FC<InTalkWithViewProps> = ({
           </button>
         </div>
       ) : activeView === 'stages' ? (
-        /* STAGE PIPELINE SWIMLANE VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-          {stages.map(st => {
-            const inThisStage = filteredProspects.filter(p => p.talkStage === st);
-            const stageDisplay = st === 'Signed' ? t.signToAgency : st;
-            return (
-              <div 
-                key={st}
-                className="bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 p-3 flex flex-col min-h-[350px]"
-              >
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate" title={stageDisplay}>
-                    {stageDisplay}
-                  </span>
-                  <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono-tabular font-semibold">
-                    {inThisStage.length}
-                  </span>
-                </div>
+        /* INTERACTIVE CRM KANBAN DEAL BOARD */
+        <div className="space-y-3">
+          {/* Compact Pipeline Summary Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span>
+                {isHe ? 'מגעים פעילים:' : 'Active Deals:'}{' '}
+                <strong className="text-slate-900 dark:text-white font-mono tabular-nums">
+                  {filteredProspects.length}
+                </strong>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                {isHe ? 'עדיפות גבוהה:' : 'High Priority:'}{' '}
+                <strong className="text-amber-600 dark:text-amber-400 font-mono tabular-nums">
+                  {filteredProspects.filter(p => p.priority === 'High').length}
+                </strong>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                {isHe ? 'הצעות וחוזים:' : 'Offers & Drafting:'}{' '}
+                <strong className="text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">
+                  {filteredProspects.filter(p => p.talkStage === 'Offer Proposed' || p.talkStage === 'Contract Drafting').length}
+                </strong>
+              </span>
+            </div>
 
-                <div className="space-y-2.5 flex-1">
-                  {inThisStage.map(prospect => {
-                    const youthCat = prospect.youthCategory || 'Senior';
-                    const hasVideo = Boolean(prospect.videoUrl && prospect.videoUrl.trim().length > 0);
-                    const isMaleProspect = prospect.gender === 'Male';
-                    const posMap = isMaleProspect ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
+            <span className="text-[11px] text-slate-400 dark:text-slate-500">
+              {isHe
+                ? 'גרור כרטיסים בין העמודות או לחץ על חצי השלבים להעברה מהירה'
+                : 'Drag deals between columns or use step arrows to advance stages'}
+            </span>
+          </div>
 
-                    return (
-                      <div
-                        key={prospect.id}
-                        className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-slate-300 transition-all text-xs space-y-2"
-                      >
-                        <div className="flex items-start justify-between gap-1">
-                          <div>
-                            <strong className="text-slate-900 dark:text-white block font-semibold">
-                              {prospect.name}
-                            </strong>
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                              {prospect.currentClub}
-                            </span>
-                          </div>
-                          
-                          <div className="flex flex-col items-end gap-1">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              isMaleProspect
-                                ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                                : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                            }`}>
-                              {isMaleProspect ? (language === 'he' ? 'גברים' : 'Male') : (language === 'he' ? 'נשים' : 'Female')}
-                            </span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getYouthBadgeColor(youthCat)}`}>
-                              {youthCat}
-                            </span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              prospect.scope === 'International' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                            }`}>
-                              {prospect.scope}
-                            </span>
-                          </div>
-                        </div>
+          {/* Horizontal Scrollable Kanban Swimlanes */}
+          <div className="overflow-x-auto pb-3 -mx-1 px-1">
+            <div className="flex items-stretch gap-3 min-w-[1480px]">
+              {stages.map((st, stageIdx) => {
+                const inThisStage = filteredProspects.filter(p => p.talkStage === st);
+                const stageDisplay = st === 'Signed' ? t.signToAgency : st;
+                const isDropTarget = dragOverStage === st;
+                const isSignStage = st === 'Signed';
+                const accent = STAGE_ACCENTS[st];
 
-                        <div className="text-[11px] text-slate-600 dark:text-slate-400">
-                          {posMap[language][prospect.position] || prospect.position} · {prospect.age} {language === 'he' ? 'שנים' : 'yrs'}
-                        </div>
+                const moveCardToStage = (prospect: TalkProspect, target: TalkStage) => {
+                  if (onUpdateProspectStage) {
+                    onUpdateProspectStage(prospect, target);
+                  } else if (target === 'Signed') {
+                    onSignProspectToRoster(prospect);
+                  }
+                };
 
-                        {/* Video Button (Only if video attached) */}
-                        {hasVideo ? (
-                          <button
-                            onClick={() => onWatchVideo(prospect)}
-                            className="w-full flex items-center justify-center gap-1.5 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium text-[11px] transition-colors"
+                return (
+                  <div
+                    key={st}
+                    onDragOver={e => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverStage !== st) setDragOverStage(st);
+                    }}
+                    onDragLeave={e => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                        setDragOverStage(null);
+                      }
+                    }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setDragOverStage(null);
+                      const prospectId = e.dataTransfer.getData('text/plain') || draggedProspectId;
+                      setDraggedProspectId(null);
+                      if (!prospectId) return;
+                      const dropped = prospects.find(p => p.id === prospectId);
+                      if (!dropped || dropped.talkStage === st) return;
+                      moveCardToStage(dropped, st);
+                    }}
+                    className={`flex-1 min-w-[242px] rounded-xl border transition-all flex flex-col min-h-[420px] overflow-hidden ${
+                      isDropTarget
+                        ? isSignStage
+                          ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-400 dark:border-emerald-500 ring-2 ring-emerald-500/20'
+                          : 'bg-slate-100/90 dark:bg-slate-800/70 border-slate-400 dark:border-slate-500 ring-2 ring-slate-400/20'
+                        : isSignStage
+                        ? 'bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200/80 dark:border-emerald-900/50'
+                        : 'bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    {/* Top 2px Stage Hairline */}
+                    <div className={`h-0.5 w-full ${accent.bar}`} />
+
+                    {/* Column Header */}
+                    <div className="px-3.5 py-3 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-mono tabular-nums text-slate-400 dark:text-slate-500">
+                            0{stageIdx + 1}
+                          </span>
+                          <span
+                            className={`text-xs font-bold truncate ${
+                              isSignStage
+                                ? 'text-emerald-800 dark:text-emerald-300'
+                                : 'text-slate-900 dark:text-white'
+                            }`}
+                            title={stageDisplay}
                           >
-                            <Play className="w-3 h-3 text-emerald-600" />
-                            <span>{t.watchReel}</span>
-                          </button>
-                        ) : (
-                          <div className="py-1 text-center text-[10px] text-slate-400 italic">
-                            {t.noVideoAttached}
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/60">
-                          <button
-                            onClick={() => onOpenConversationLog(prospect)}
-                            className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
-                          >
-                            {t.talkHistory} ({prospect.conversationHistory.length})
-                          </button>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => onRequestDeleteProspect(prospect)}
-                              className="text-slate-400 hover:text-rose-600"
-                              title="Delete Candidate"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => onSignProspectToRoster(prospect)}
-                              className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold hover:underline"
-                              title={
-                                isMaleProspect
-                                  ? language === 'he' ? 'החתם בסוכנות והעבר לסגל בנים ונוער' : 'Sign in Agency and move to Male Roster'
-                                  : language === 'he' ? 'החתם בסוכנות והעבר לסגל השחקניות הרשמי' : 'Sign in Agency and move to Female Roster'
-                              }
-                            >
-                              {t.signToAgency} &rarr;
-                            </button>
-                          </div>
+                            {isHe ? accent.labelHe : stageDisplay}
+                          </span>
                         </div>
                       </div>
-                    );
-                  })}
 
-                  {inThisStage.length === 0 && (
-                    <div className="h-24 flex items-center justify-center text-slate-400 text-xs italic">
-                      Empty stage
+                      <span className="text-xs font-mono tabular-nums font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                        {inThisStage.length}
+                      </span>
                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+
+                    {/* Deal Cards List */}
+                    <div className="p-2.5 space-y-2.5 flex-1">
+                      {inThisStage.map(prospect => {
+                        const youthCat = prospect.youthCategory || 'Senior';
+                        const hasVideo = Boolean(prospect.videoUrl && prospect.videoUrl.trim().length > 0);
+                        const isMaleProspect = prospect.gender === 'Male';
+                        const posMap = isMaleProspect ? MALE_POSITION_TRANSLATIONS : POSITION_TRANSLATIONS;
+                        const latestConvo = prospect.conversationHistory[prospect.conversationHistory.length - 1];
+                        const isDraggingThis = draggedProspectId === prospect.id;
+                        const prevStage = stageIdx > 0 ? stages[stageIdx - 1] : null;
+                        const nextStage = stageIdx < stages.length - 1 ? stages[stageIdx + 1] : null;
+                        const initials = prospect.name
+                          .split(' ')
+                          .map(part => part[0])
+                          .join('')
+                          .slice(0, 2)
+                          .toUpperCase();
+
+                        return (
+                          <div
+                            key={prospect.id}
+                            draggable
+                            onDragStart={e => {
+                              setDraggedProspectId(prospect.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              e.dataTransfer.setData('text/plain', prospect.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedProspectId(null);
+                              setDragOverStage(null);
+                            }}
+                            className={`group rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-grab active:cursor-grabbing space-y-2.5 ${
+                              isDraggingThis ? 'opacity-45 scale-[0.98]' : ''
+                            }`}
+                          >
+                            {/* Row 1: Avatar + Name + Priority + Grip */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {prospect.photoUrl ? (
+                                  <img
+                                    src={prospect.photoUrl}
+                                    alt={prospect.name}
+                                    referrerPolicy="no-referrer"
+                                    className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center shrink-0">
+                                    {initials}
+                                  </div>
+                                )}
+
+                                <div className="min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditProspect(prospect)}
+                                    className="text-left rtl:text-right text-xs font-bold text-slate-900 dark:text-white hover:text-emerald-700 dark:hover:text-emerald-400 truncate block w-full transition-colors"
+                                  >
+                                    {prospect.name}
+                                  </button>
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                    {prospect.currentClub || (isHe ? 'ללא מועדון' : 'Free Agent')}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span
+                                  className={`text-[10px] font-bold ${
+                                    prospect.priority === 'High'
+                                      ? 'text-amber-600 dark:text-amber-400'
+                                      : prospect.priority === 'Medium'
+                                      ? 'text-slate-500 dark:text-slate-400'
+                                      : 'text-slate-400 dark:text-slate-500'
+                                  }`}
+                                >
+                                  {prospect.priority}
+                                </span>
+                                <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors" />
+                              </div>
+                            </div>
+
+                            {/* Row 2: Unboxed Clean Typographic Metadata */}
+                            <div className="text-[11px] text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 leading-snug">
+                              <span>{posMap[language][prospect.position] || prospect.position}</span>
+                              <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+                              <span className="font-mono tabular-nums">
+                                {prospect.age} {isHe ? 'ש׳' : 'y/o'}
+                              </span>
+                              <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+                              <span className={isMaleProspect ? 'text-sky-700 dark:text-sky-400 font-medium' : 'text-rose-700 dark:text-rose-400 font-medium'}>
+                                {isMaleProspect ? (isHe ? 'גברים' : 'Male') : isHe ? 'נשים' : 'Female'}
+                              </span>
+                              <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+                              <span>{youthCat}</span>
+                              <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+                              <span>{prospect.scope}</span>
+                            </div>
+
+                            {/* Target Salary (when available) */}
+                            {prospect.targetSalaryAmount && prospect.targetSalaryAmount > 0 && (
+                              <div className="text-[11px] font-mono tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
+                                {isHe ? 'יעד שכר:' : 'Target:'}{' '}
+                                {formatSalary(
+                                  prospect.targetSalaryAmount,
+                                  prospect.targetSalaryCurrency || currency,
+                                  currency,
+                                  prospect.targetSalaryPeriod || 'Monthly',
+                                  language
+                                )}
+                              </div>
+                            )}
+
+                            {/* Latest Touch & Next Action */}
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px] space-y-1">
+                              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenConversationLog(prospect)}
+                                  className="inline-flex items-center gap-1 hover:text-emerald-700 dark:hover:text-emerald-400 font-medium truncate"
+                                >
+                                  <MessageSquare className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">
+                                    {latestConvo
+                                      ? `${latestConvo.channel} · ${latestConvo.date}`
+                                      : isHe
+                                      ? 'אין תיעוד שיחה'
+                                      : 'No talks logged'}
+                                  </span>
+                                </button>
+                                <span className="font-mono tabular-nums text-[10px] text-slate-400 shrink-0">
+                                  ({prospect.conversationHistory.length})
+                                </span>
+                              </div>
+
+                              {latestConvo?.nextAction && (
+                                <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium truncate">
+                                  {t.nextAction} {latestConvo.nextAction}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Footer Controls & 1-Click Stage Stepper */}
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-1">
+                                {hasVideo && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onWatchVideo(prospect)}
+                                    title={t.watchReel}
+                                    className="p-1.5 rounded-lg text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                                  >
+                                    <Play className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => onEditProspect(prospect)}
+                                  title={isHe ? 'ערוך מועמד' : 'Edit Candidate'}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onRequestDeleteProspect(prospect)}
+                                  title={isHe ? 'מחק מועמד' : 'Delete Candidate'}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Stage Move Controls */}
+                              <div className="flex items-center gap-1">
+                                {prevStage && (
+                                  <button
+                                    type="button"
+                                    title={`${isHe ? 'החזר ל' : 'Move back to'} ${prevStage}`}
+                                    onClick={() => moveCardToStage(prospect, prevStage)}
+                                    className="p-1 rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                  >
+                                    <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-180" />
+                                  </button>
+                                )}
+
+                                {nextStage ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => moveCardToStage(prospect, nextStage)}
+                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                                      nextStage === 'Signed'
+                                        ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200'
+                                    }`}
+                                    title={`${isHe ? 'העבר לשלב' : 'Advance to'} ${nextStage}`}
+                                  >
+                                    <span>
+                                      {nextStage === 'Signed'
+                                        ? isHe
+                                          ? 'החתם'
+                                          : 'Sign'
+                                        : isHe
+                                        ? 'קדם'
+                                        : 'Advance'}
+                                    </span>
+                                    <ChevronRight className="w-3 h-3 rtl:rotate-180" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => onSignProspectToRoster(prospect)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white transition-colors"
+                                  >
+                                    <UserCheck className="w-3 h-3" />
+                                    <span>{t.signToAgency}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {inThisStage.length === 0 && (
+                        <div
+                          className={`h-28 rounded-lg border border-dashed flex items-center justify-center text-center px-3 text-[11px] transition-colors ${
+                            isDropTarget
+                              ? 'border-emerald-400 text-emerald-700 dark:text-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20 font-semibold'
+                              : 'border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500'
+                          }`}
+                        >
+                          {isSignStage
+                            ? isHe
+                              ? 'גרור לכאן כדי להחתים ולהעביר לסגל'
+                              : 'Drop here to sign into agency roster'
+                            : isHe
+                            ? 'גרור מועמד/ת לכאן'
+                            : 'Drop candidate here'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ) : (
         /* DETAILED CARDS VIEW */

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Player,
   TalkProspect,
+  TalkStage,
   ForeignProspect,
   ConversationLog,
   YouthCategory,
@@ -86,7 +87,9 @@ import {
   subscribeToTeamMembers,
   subscribeToMyTeamMemberRule,
   saveTeamMemberRuleToFirestore,
-  deleteTeamMemberRuleFromFirestore
+  deleteTeamMemberRuleFromFirestore,
+  isQuotaExceededError,
+  resetWriteQuotaPause
 } from './services/firestoreService';
 
 export default function App() {
@@ -236,6 +239,18 @@ export default function App() {
   const [teamMembers, setTeamMembers] = useState<TeamMemberRule[]>([]);
   const [copiedUid, setCopiedUid] = useState(false);
 
+  // Sync & Quota Safety Refs (prevents preference echo write-loops and quota backoff storms)
+  const isWriteQuotaPausedRef = useRef<boolean>(false);
+  const hasShownQuotaToastRef = useRef<boolean>(false);
+  const lastSavedPersonalPrefsJsonRef = useRef<string | null>(null);
+  const lastRemoteWatchedKeysRef = useRef<string | null>(null);
+  const prevPersonalPrefsTupleRef = useRef<{
+    language: Language;
+    currency: Currency;
+    isDarkMode: boolean;
+    watchedKeysJson: string;
+  } | null>(null);
+
   const permissions = useMemo<WorkspacePermissions>(() => {
     if (accessStatus === 'local' || accessStatus === 'owner') {
       return {
@@ -282,8 +297,23 @@ export default function App() {
     return undefined;
   }, [accessStatus, myMemberRule, language]);
 
-  // Mobile sidebar drawer state
+  // Mobile sidebar drawer state & Desktop icon-rail collapse state
   const [isOpenMobileSidebar, setIsOpenMobileSidebar] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('aura_sidebar_collapsed_v1') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('aura_sidebar_collapsed_v1', String(isSidebarCollapsed));
+    } catch (e) {
+      console.error('Failed to persist sidebar state', e);
+    }
+  }, [isSidebarCollapsed]);
 
   // Modal dialog states
   const [isAddTrackedModalOpen, setIsAddTrackedModalOpen] = useState(false);
@@ -509,8 +539,21 @@ export default function App() {
         setAccessStatus('local');
         setMyMemberRule(null);
         setTeamMembers([]);
+        resetWriteQuotaPause();
+        isWriteQuotaPausedRef.current = false;
+        hasShownQuotaToastRef.current = false;
+        lastSavedPersonalPrefsJsonRef.current = null;
+        lastRemoteWatchedKeysRef.current = null;
+        prevPersonalPrefsTupleRef.current = null;
         return;
       }
+
+      resetWriteQuotaPause();
+      isWriteQuotaPausedRef.current = false;
+      hasShownQuotaToastRef.current = false;
+      lastSavedPersonalPrefsJsonRef.current = null;
+      lastRemoteWatchedKeysRef.current = null;
+      prevPersonalPrefsTupleRef.current = null;
 
       setIsCloudSyncing(true);
       try {
@@ -526,12 +569,20 @@ export default function App() {
             await seedDefaultTeamMemberIfMissing(user.uid);
             await syncLocalDataToFirestoreIfEmpty(user.uid, players, prospects, trackedPlayers, foreignProspects, malePlayers, agents);
           } catch (err) {
-            console.error('Error initializing owner workspace:', err);
+            if (isQuotaExceededError(err)) {
+              isWriteQuotaPausedRef.current = true;
+            } else {
+              console.error('Error initializing owner workspace:', err);
+            }
           }
 
-          unsubTeamMembers = subscribeToTeamMembers(user.uid, (members) => {
-            setTeamMembers(members);
-          });
+          unsubTeamMembers = subscribeToTeamMembers(
+            user.uid,
+            (members) => {
+              setTeamMembers(members);
+            },
+            (err) => handleBackgroundQuotaError(err)
+          );
         } else if (res.status === 'member' || res.status === 'disabled') {
           setWorkspaceUid(res.workspaceUid);
           setMyMemberRule(res.rule);
@@ -600,60 +651,105 @@ export default function App() {
     let unsubPersonalPrefs: (() => void) | undefined;
 
     if (permissions.canViewPlayers) {
-      unsubPlayers = subscribeToPlayers(workspaceUid, (remotePlayers) => {
-        setPlayers(remotePlayers);
-      });
-      unsubMalePlayers = subscribeToMalePlayers(workspaceUid, (remoteMalePlayers) => {
-        setMalePlayers(remoteMalePlayers);
-      });
+      unsubPlayers = subscribeToPlayers(
+        workspaceUid,
+        (remotePlayers) => {
+          setPlayers(remotePlayers);
+        },
+        handleBackgroundQuotaError
+      );
+      unsubMalePlayers = subscribeToMalePlayers(
+        workspaceUid,
+        (remoteMalePlayers) => {
+          setMalePlayers(remoteMalePlayers);
+        },
+        handleBackgroundQuotaError
+      );
     } else {
       setPlayers([]);
       setMalePlayers([]);
     }
 
     if (permissions.canAccessScouting) {
-      unsubProspects = subscribeToProspects(workspaceUid, (remoteProspects) => {
-        setProspects(remoteProspects);
-      });
-      unsubForeign = subscribeToForeignProspects(workspaceUid, (remoteForeign) => {
-        setForeignProspects(remoteForeign);
-      });
+      unsubProspects = subscribeToProspects(
+        workspaceUid,
+        (remoteProspects) => {
+          setProspects(remoteProspects);
+        },
+        handleBackgroundQuotaError
+      );
+      unsubForeign = subscribeToForeignProspects(
+        workspaceUid,
+        (remoteForeign) => {
+          setForeignProspects(remoteForeign);
+        },
+        handleBackgroundQuotaError
+      );
     } else {
       setProspects([]);
       setForeignProspects([]);
     }
 
     if (permissions.canViewPlayers || permissions.canEditTracker) {
-      unsubTracked = subscribeToTrackedPlayers(workspaceUid, (remoteTracked) => {
-        setTrackedPlayers(remoteTracked);
-      });
+      unsubTracked = subscribeToTrackedPlayers(
+        workspaceUid,
+        (remoteTracked) => {
+          setTrackedPlayers(remoteTracked);
+        },
+        handleBackgroundQuotaError
+      );
     } else {
       setTrackedPlayers([]);
     }
 
-    unsubAgents = subscribeToAgents(workspaceUid, (remoteAgents) => {
-      setAgents(remoteAgents);
-    });
+    unsubAgents = subscribeToAgents(
+      workspaceUid,
+      (remoteAgents) => {
+        setAgents(remoteAgents);
+      },
+      handleBackgroundQuotaError
+    );
 
-    unsubWorkspacePrefs = subscribeToPreferences(workspaceUid, (remotePrefs) => {
-      if (remotePrefs.nextTransferWindowDate && /^\d{4}-\d{2}-\d{2}$/.test(remotePrefs.nextTransferWindowDate)) {
-        setNextTransferWindowDate(remotePrefs.nextTransferWindowDate);
-      }
-      if (permissions.isOwner && Array.isArray(remotePrefs.watchedNextMatchKeys)) {
-        setWatchedNextMatchKeys(
-          remotePrefs.watchedNextMatchKeys.filter((x): x is string => typeof x === 'string').slice(0, 24)
-        );
-      }
-    });
-
-    if (!permissions.isOwner) {
-      unsubPersonalPrefs = subscribeToPreferences(currentUser.uid, (myPrefs) => {
-        if (Array.isArray(myPrefs.watchedNextMatchKeys)) {
-          setWatchedNextMatchKeys(
-            myPrefs.watchedNextMatchKeys.filter((x): x is string => typeof x === 'string').slice(0, 24)
+    unsubWorkspacePrefs = subscribeToPreferences(
+      workspaceUid,
+      (remotePrefs) => {
+        if (remotePrefs.nextTransferWindowDate && /^\d{4}-\d{2}-\d{2}$/.test(remotePrefs.nextTransferWindowDate)) {
+          const remoteDate = remotePrefs.nextTransferWindowDate;
+          setNextTransferWindowDate(prev => (prev === remoteDate ? prev : remoteDate));
+        }
+        if (permissions.isOwner && Array.isArray(remotePrefs.watchedNextMatchKeys)) {
+          const nextKeys = remotePrefs.watchedNextMatchKeys
+            .filter((x): x is string => typeof x === 'string')
+            .slice(0, 24);
+          lastRemoteWatchedKeysRef.current = JSON.stringify(nextKeys);
+          setWatchedNextMatchKeys(prev =>
+            prev.length === nextKeys.length && prev.every((k, i) => k === nextKeys[i])
+              ? prev
+              : nextKeys
           );
         }
-      });
+      },
+      handleBackgroundQuotaError
+    );
+
+    if (!permissions.isOwner) {
+      unsubPersonalPrefs = subscribeToPreferences(
+        currentUser.uid,
+        (myPrefs) => {
+          if (Array.isArray(myPrefs.watchedNextMatchKeys)) {
+            const nextKeys = myPrefs.watchedNextMatchKeys
+              .filter((x): x is string => typeof x === 'string')
+              .slice(0, 24);
+            lastRemoteWatchedKeysRef.current = JSON.stringify(nextKeys);
+            setWatchedNextMatchKeys(prev =>
+              prev.length === nextKeys.length && prev.every((k, i) => k === nextKeys[i])
+                ? prev
+                : nextKeys
+            );
+          }
+        },
+        handleBackgroundQuotaError
+      );
     }
 
     return () => {
@@ -676,22 +772,72 @@ export default function App() {
     permissions.isOwner
   ]);
 
-  // Sync personal UI preferences (language, currency, dark mode, next match watchlist) to signed-in user's own doc
+  const handleBackgroundQuotaError = (err: unknown) => {
+    if (isQuotaExceededError(err)) {
+      isWriteQuotaPausedRef.current = true;
+      if (!hasShownQuotaToastRef.current) {
+        hasShownQuotaToastRef.current = true;
+        showToast(
+          language === 'he'
+            ? 'מכסת הכתיבה היומית ב-Firestore הגיעה לגבול (המכסה מתאפסת מחר). השינויים נשמרים מקומית בינתיים.'
+            : 'Firestore daily free write quota reached (resets tomorrow). Changes remain saved locally in the meantime.'
+        );
+      }
+      return;
+    }
+    console.error(err);
+  };
+
+  // Sync personal UI preferences only when the user actually changes them locally (never echo remote snapshots)
   useEffect(() => {
-    if (currentUser && (accessStatus === 'owner' || accessStatus === 'member')) {
+    if (!currentUser || (accessStatus !== 'owner' && accessStatus !== 'member')) {
+      return;
+    }
+
+    const watchedKeysJson = JSON.stringify(watchedNextMatchKeys);
+    const currentJson = JSON.stringify({ language, currency, isDarkMode, watchedNextMatchKeys });
+    const prevTuple = prevPersonalPrefsTupleRef.current;
+
+    if (!prevTuple || lastSavedPersonalPrefsJsonRef.current === null) {
+      prevPersonalPrefsTupleRef.current = { language, currency, isDarkMode, watchedKeysJson };
+      lastSavedPersonalPrefsJsonRef.current = currentJson;
+      return;
+    }
+
+    const onlyWatchedKeysChangedFromRemote =
+      prevTuple.language === language &&
+      prevTuple.currency === currency &&
+      prevTuple.isDarkMode === isDarkMode &&
+      prevTuple.watchedKeysJson !== watchedKeysJson &&
+      watchedKeysJson === lastRemoteWatchedKeysRef.current;
+
+    prevPersonalPrefsTupleRef.current = { language, currency, isDarkMode, watchedKeysJson };
+
+    if (onlyWatchedKeysChangedFromRemote || lastSavedPersonalPrefsJsonRef.current === currentJson) {
+      lastSavedPersonalPrefsJsonRef.current = currentJson;
+      return;
+    }
+
+    if (isWriteQuotaPausedRef.current) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (isWriteQuotaPausedRef.current) return;
+      lastSavedPersonalPrefsJsonRef.current = currentJson;
       savePreferencesToFirestore(currentUser.uid, {
         language,
         currency,
         isDarkMode,
         watchedNextMatchKeys
-      }).catch(console.error);
-    }
+      }).catch(handleBackgroundQuotaError);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
   }, [currentUser, accessStatus, language, currency, isDarkMode, watchedNextMatchKeys]);
 
-  // Keep existing Player Tracker entries automatically synced with Female & Male Rosters (never adds new players)
+  // Keep existing Player Tracker entries aligned in-memory with Female & Male Rosters (explicit saves & manual Sync button persist to Firestore)
   useEffect(() => {
-    if (isCloudSyncing) return;
-    if (currentUser && !permissions.canEditTracker) return;
     if (trackedPlayers.length === 0) return;
     if (players.length === 0 && malePlayers.length === 0) return;
 
@@ -703,13 +849,8 @@ export default function App() {
 
     if (updatedTrackedPlayers.length > 0) {
       setTrackedPlayers(nextTrackedPlayers);
-      if (currentUser && workspaceUid && permissions.canEditTracker) {
-        updatedTrackedPlayers.forEach(tp => {
-          saveTrackedPlayerToFirestore(workspaceUid, tp).catch(console.error);
-        });
-      }
     }
-  }, [players, malePlayers, trackedPlayers, currentUser, workspaceUid, permissions.canEditTracker, isCloudSyncing]);
+  }, [players, malePlayers, trackedPlayers]);
 
   const handleChangeNextTransferWindowDate = (newDate: string) => {
     if (currentUser && !permissions.isOwner) return;
@@ -720,7 +861,7 @@ export default function App() {
         currency,
         isDarkMode,
         nextTransferWindowDate: newDate
-      }).catch(console.error);
+      }).catch(handleBackgroundQuotaError);
     }
   };
 
@@ -795,7 +936,7 @@ export default function App() {
     }
     setAgents(updatedAgents);
     if (currentUser && workspaceUid) {
-      saveAgentsToFirestore(workspaceUid, updatedAgents).catch(console.error);
+      saveAgentsToFirestore(workspaceUid, updatedAgents).catch(handleBackgroundQuotaError);
     }
     showToast(language === 'he' ? 'פרטי הסוכנים נשמרו בהצלחה.' : 'Agent contact details saved successfully.');
   };
@@ -827,11 +968,20 @@ export default function App() {
           : `Access rules saved for ${saved.displayName || saved.uid}.`
       );
     } catch (err: any) {
-      showToast(
-        language === 'he'
-          ? 'שגיאה בשמירת הרשאות המשתמש ב-Firebase.'
-          : 'Failed to save user access rule to Firebase.'
-      );
+      if (isQuotaExceededError(err)) {
+        isWriteQuotaPausedRef.current = true;
+        showToast(
+          language === 'he'
+            ? 'מכסת הכתיבה היומית ב-Firestore הגיעה לגבול — לא ניתן לשמור הרשאות חדשות עד איפוס המכסה מחר.'
+            : 'Firestore daily write quota exceeded — team rule changes cannot be saved until the quota resets tomorrow.'
+        );
+      } else {
+        showToast(
+          language === 'he'
+            ? 'שגיאה בשמירת הרשאות המשתמש ב-Firebase.'
+            : 'Failed to save user access rule to Firebase.'
+        );
+      }
       throw err;
     }
   };
@@ -846,7 +996,16 @@ export default function App() {
       setTeamMembers(prev => prev.filter(m => m.uid !== memberUid));
       showToast(language === 'he' ? 'הגישה של המשתמש הוסרה.' : 'User workspace access revoked.');
     } catch (err) {
-      showToast(language === 'he' ? 'שגיאה בהסרת המשתמש.' : 'Failed to revoke user access.');
+      if (isQuotaExceededError(err)) {
+        isWriteQuotaPausedRef.current = true;
+        showToast(
+          language === 'he'
+            ? 'מכסת הכתיבה היומית ב-Firestore הגיעה לגבול — לא ניתן לעדכן הרשאות עד איפוס המכסה מחר.'
+            : 'Firestore daily write quota exceeded — cannot update access rules until the quota resets tomorrow.'
+        );
+      } else {
+        showToast(language === 'he' ? 'שגיאה בהסרת המשתמש.' : 'Failed to revoke user access.');
+      }
       throw err;
     }
   };
@@ -885,7 +1044,7 @@ export default function App() {
 
     setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? updatedTracked : tp)));
     if (currentUser && workspaceUid && permissions.canEditTracker) {
-      saveTrackedPlayerToFirestore(workspaceUid, updatedTracked).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, updatedTracked).catch(handleBackgroundQuotaError);
     }
   };
 
@@ -915,7 +1074,7 @@ export default function App() {
         return [savedPlayer, ...prev];
       });
       if (currentUser && workspaceUid) {
-        saveMalePlayerToFirestore(workspaceUid, savedPlayer).catch(console.error);
+        saveMalePlayerToFirestore(workspaceUid, savedPlayer).catch(handleBackgroundQuotaError);
       }
       syncSavedRosterPlayerToExistingTracker(savedPlayer, 'male');
       showToast(language === 'he'
@@ -934,7 +1093,7 @@ export default function App() {
       return [savedPlayer, ...prev];
     });
     if (currentUser && workspaceUid) {
-      savePlayerToFirestore(workspaceUid, savedPlayer).catch(console.error);
+      savePlayerToFirestore(workspaceUid, savedPlayer).catch(handleBackgroundQuotaError);
     }
     syncSavedRosterPlayerToExistingTracker(savedPlayer, 'female');
     showToast(language === 'he' 
@@ -952,7 +1111,7 @@ export default function App() {
       setTrackedPlayers(nextTrackedPlayers);
       if (currentUser && workspaceUid) {
         updatedTrackedPlayers.forEach(tp => {
-          saveTrackedPlayerToFirestore(workspaceUid, tp).catch(console.error);
+          saveTrackedPlayerToFirestore(workspaceUid, tp).catch(handleBackgroundQuotaError);
         });
       }
     }
@@ -987,12 +1146,12 @@ export default function App() {
     if (rosterType === 'male') {
       setMalePlayers(prev => prev.map(p => (p.id === playerId ? updatedPlayer : p)));
       if (currentUser && workspaceUid) {
-        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
       }
     } else {
       setPlayers(prev => prev.map(p => (p.id === playerId ? updatedPlayer : p)));
       if (currentUser && workspaceUid) {
-        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
       }
     }
 
@@ -1020,7 +1179,7 @@ export default function App() {
         };
         setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? nextTracked : tp)));
         if (currentUser && workspaceUid) {
-          saveTrackedPlayerToFirestore(workspaceUid, nextTracked).catch(console.error);
+          saveTrackedPlayerToFirestore(workspaceUid, nextTracked).catch(handleBackgroundQuotaError);
         }
         syncedTrackedUpdated = true;
       } else if (
@@ -1037,7 +1196,7 @@ export default function App() {
         };
         setTrackedPlayers(prev => prev.map(tp => (tp.id === matchedTracked.id ? clearedTracked : tp)));
         if (currentUser && workspaceUid) {
-          saveTrackedPlayerToFirestore(workspaceUid, clearedTracked).catch(console.error);
+          saveTrackedPlayerToFirestore(workspaceUid, clearedTracked).catch(handleBackgroundQuotaError);
         }
       }
     }
@@ -1069,7 +1228,7 @@ export default function App() {
         return p;
       }));
       if (currentUser && workspaceUid && updatedPlayer) {
-        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
       }
     } else {
       setPlayers(prev => prev.map(p => {
@@ -1080,7 +1239,7 @@ export default function App() {
         return p;
       }));
       if (currentUser && workspaceUid && updatedPlayer) {
-        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
       }
     }
     showToast(language === 'he'
@@ -1150,14 +1309,14 @@ export default function App() {
       setPlayers(prev => prev.filter(p => p.id !== pid));
       if (detailPlayer?.id === pid) setDetailPlayer(null);
       if (currentUser && workspaceUid) {
-        deletePlayerFromFirestore(workspaceUid, pid).catch(console.error);
+        deletePlayerFromFirestore(workspaceUid, pid).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he' ? 'השחקנית נמחקה מסגל השחקניות.' : 'Player removed from female roster.');
     } else if (deleteTarget.type === 'multiple_players' && deleteTarget.playerIds) {
       const ids = new Set(deleteTarget.playerIds);
       setPlayers(prev => prev.filter(p => !ids.has(p.id)));
       if (currentUser && workspaceUid) {
-        deleteMultiplePlayersFromFirestore(workspaceUid, deleteTarget.playerIds).catch(console.error);
+        deleteMultiplePlayersFromFirestore(workspaceUid, deleteTarget.playerIds).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he' 
         ? `${deleteTarget.playerIds.length} שחקניות נמחקו מסגל השחקניות.` 
@@ -1167,14 +1326,14 @@ export default function App() {
       setMalePlayers(prev => prev.filter(p => p.id !== pid));
       if (detailPlayer?.id === pid) setDetailPlayer(null);
       if (currentUser && workspaceUid) {
-        deleteMalePlayerFromFirestore(workspaceUid, pid).catch(console.error);
+        deleteMalePlayerFromFirestore(workspaceUid, pid).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he' ? 'השחקן נמחק מסגל בנים ונוער.' : 'Player removed from male roster.');
     } else if (deleteTarget.type === 'multiple_male_players' && deleteTarget.playerIds) {
       const ids = new Set(deleteTarget.playerIds);
       setMalePlayers(prev => prev.filter(p => !ids.has(p.id)));
       if (currentUser && workspaceUid) {
-        deleteMultipleMalePlayersFromFirestore(workspaceUid, deleteTarget.playerIds).catch(console.error);
+        deleteMultipleMalePlayersFromFirestore(workspaceUid, deleteTarget.playerIds).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he'
         ? `${deleteTarget.playerIds.length} שחקנים נמחקו מסגל בנים ונוער.`
@@ -1183,14 +1342,14 @@ export default function App() {
       const pid = deleteTarget.prospect.id;
       setProspects(prev => prev.filter(p => p.id !== pid));
       if (currentUser && workspaceUid) {
-        deleteProspectFromFirestore(workspaceUid, pid).catch(console.error);
+        deleteProspectFromFirestore(workspaceUid, pid).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he' ? 'המועמדת הוסרה מצינור השיחות.' : 'Candidate removed from talk pipeline.');
     } else if (deleteTarget.type === 'single_foreign_prospect' && deleteTarget.foreignProspect) {
       const pid = deleteTarget.foreignProspect.id;
       setForeignProspects(prev => prev.filter(p => p.id !== pid));
       if (currentUser && workspaceUid) {
-        deleteForeignProspectFromFirestore(workspaceUid, pid).catch(console.error);
+        deleteForeignProspectFromFirestore(workspaceUid, pid).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he' ? 'השחקנית הזרה הוסרה מרשימת המעקב.' : 'Foreign prospect removed from pipeline.');
     } else if (deleteTarget.type === 'single_tracked' && deleteTarget.trackedPlayer) {
@@ -1198,7 +1357,7 @@ export default function App() {
       const pid = deleteTarget.trackedPlayer.id;
       setTrackedPlayers(prev => prev.filter(p => p.id !== pid));
       if (currentUser && workspaceUid) {
-        deleteTrackedPlayerFromFirestore(workspaceUid, pid).catch(console.error);
+        deleteTrackedPlayerFromFirestore(workspaceUid, pid).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he' ? 'השחקן/ית הוסר/ה מכלי המעקב.' : 'Player removed from Player Tracker.');
     } else if (deleteTarget.type === 'multiple_tracked' && deleteTarget.trackedIds) {
@@ -1206,7 +1365,7 @@ export default function App() {
       const ids = new Set(deleteTarget.trackedIds);
       setTrackedPlayers(prev => prev.filter(p => !ids.has(p.id)));
       if (currentUser && workspaceUid) {
-        deleteMultipleTrackedPlayersFromFirestore(workspaceUid, deleteTarget.trackedIds).catch(console.error);
+        deleteMultipleTrackedPlayersFromFirestore(workspaceUid, deleteTarget.trackedIds).catch(handleBackgroundQuotaError);
       }
       showToast(language === 'he' 
         ? `${deleteTarget.trackedIds.length} שחקנים הוסרו מהמעקב.` 
@@ -1227,7 +1386,7 @@ export default function App() {
       return [player, ...prev];
     });
     if (currentUser && workspaceUid) {
-      saveTrackedPlayerToFirestore(workspaceUid, player).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, player).catch(handleBackgroundQuotaError);
     }
     showToast(language === 'he' 
       ? `השחקן/ית "${player.name}" נשמר/ה בהצלחה במעקב.` 
@@ -1249,7 +1408,7 @@ export default function App() {
       return p;
     }));
     if (currentUser && workspaceUid && updatedPlayer) {
-      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
     }
   };
 
@@ -1268,7 +1427,7 @@ export default function App() {
       return p;
     }));
     if (currentUser && workspaceUid && updatedPlayer) {
-      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
     }
   };
 
@@ -1287,7 +1446,7 @@ export default function App() {
       return p;
     }));
     if (currentUser && workspaceUid && updatedPlayer) {
-      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
     }
   };
 
@@ -1307,7 +1466,7 @@ export default function App() {
       return p;
     }));
     if (currentUser && workspaceUid && updatedPlayer) {
-      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
     }
   };
 
@@ -1345,7 +1504,7 @@ export default function App() {
       return p;
     }));
     if (currentUser && workspaceUid && updatedPlayer) {
-      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
     }
   };
 
@@ -1360,7 +1519,7 @@ export default function App() {
       return p;
     }));
     if (currentUser && workspaceUid && updatedPlayer) {
-      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+      saveTrackedPlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
     }
     showToast(language === 'he' ? 'יעד מעורבות בשערים עודכן בהצלחה.' : 'Goal involvement target updated successfully.');
   };
@@ -1382,7 +1541,7 @@ export default function App() {
         return p;
       }));
       if (currentUser && workspaceUid && updatedPlayer) {
-        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+        saveMalePlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
       }
     } else {
       setPlayers(prev => prev.map(p => {
@@ -1398,7 +1557,7 @@ export default function App() {
         return p;
       }));
       if (currentUser && workspaceUid && updatedPlayer) {
-        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(console.error);
+        savePlayerToFirestore(workspaceUid, updatedPlayer).catch(handleBackgroundQuotaError);
       }
     }
     showToast(language === 'he' ? 'הארכת החוזה נרשמה בהצלחה.' : 'Contract extension recorded and expiration alert updated.');
@@ -1423,12 +1582,37 @@ export default function App() {
       return [savedProspect, ...prev];
     });
     if (currentUser && workspaceUid) {
-      saveProspectToFirestore(workspaceUid, savedProspect).catch(console.error);
+      saveProspectToFirestore(workspaceUid, savedProspect).catch(handleBackgroundQuotaError);
     }
     const isMale = savedProspect.gender === 'Male';
     showToast(language === 'he' 
       ? `${isMale ? 'המועמד' : 'המועמדת'} "${savedProspect.name}" נשמר במועמדים לייצוג בסוכנות.` 
       : `Candidate "${savedProspect.name}" saved to agency pipeline.`);
+  };
+
+  const handleUpdateProspectStage = (prospect: TalkProspect, nextStage: TalkStage) => {
+    if (currentUser && !permissions.canAccessScouting) return;
+    if (prospect.talkStage === nextStage) return;
+
+    if (nextStage === 'Signed') {
+      handleSignProspectToRoster(prospect);
+      return;
+    }
+
+    const updatedProspect: TalkProspect = {
+      ...prospect,
+      talkStage: nextStage
+    };
+
+    setProspects(prev => prev.map(p => (p.id === prospect.id ? updatedProspect : p)));
+    if (currentUser && workspaceUid) {
+      saveProspectToFirestore(workspaceUid, updatedProspect).catch(handleBackgroundQuotaError);
+    }
+    showToast(
+      language === 'he'
+        ? `"${prospect.name}" הועבר/ה לשלב ${nextStage}.`
+        : `Moved "${prospect.name}" to ${nextStage}.`
+    );
   };
 
   // Handlers for International / Foreign Female Prospects
@@ -1444,7 +1628,7 @@ export default function App() {
       return [savedForeign, ...prev];
     });
     if (currentUser && workspaceUid) {
-      saveForeignProspectToFirestore(workspaceUid, savedForeign).catch(console.error);
+      saveForeignProspectToFirestore(workspaceUid, savedForeign).catch(handleBackgroundQuotaError);
     }
     showToast(language === 'he'
       ? `השחקנית הזרה "${savedForeign.fullName}" נשמרה בהצלחה.`
@@ -1465,7 +1649,7 @@ export default function App() {
       return p;
     }));
     if (currentUser && workspaceUid && updatedProspect) {
-      saveProspectToFirestore(workspaceUid, updatedProspect).catch(console.error);
+      saveProspectToFirestore(workspaceUid, updatedProspect).catch(handleBackgroundQuotaError);
     }
     showToast(language === 'he' ? 'סיכום שיחה חדש נוסף ליומן.' : 'New interaction note logged.');
   };
@@ -1537,12 +1721,12 @@ export default function App() {
     // 3. Persist in Firestore
     if (currentUser && workspaceUid) {
       if (isMale) {
-        saveMalePlayerToFirestore(workspaceUid, newPlayer).catch(console.error);
+        saveMalePlayerToFirestore(workspaceUid, newPlayer).catch(handleBackgroundQuotaError);
       } else {
-        savePlayerToFirestore(workspaceUid, newPlayer).catch(console.error);
+        savePlayerToFirestore(workspaceUid, newPlayer).catch(handleBackgroundQuotaError);
       }
       if (permissions.canDeletePlayers) {
-        deleteProspectFromFirestore(workspaceUid, prospect.id).catch(console.error);
+        deleteProspectFromFirestore(workspaceUid, prospect.id).catch(handleBackgroundQuotaError);
       }
     }
 
@@ -1614,7 +1798,7 @@ export default function App() {
   const t = TRANSLATIONS[language];
 
   return (
-    <div className={`min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors antialiased ${language === 'he' ? 'font-hebrew' : ''}`}>
+    <div className={`min-h-screen bg-[#F7F8FA] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors antialiased ${language === 'he' ? 'font-hebrew' : ''}`}>
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -1626,24 +1810,6 @@ export default function App() {
         criticalAlertsCount={criticalAlertsCount}
         upcomingBirthdaysCount={upcomingBirthdaysCount}
         trackedCount={trackedPlayers.length}
-        onOpenAddPlayer={() => {
-          setPlayerModalRosterType('female');
-          setPlayerToEdit(null);
-          setIsPlayerModalOpen(true);
-        }}
-        onOpenAddMalePlayer={() => {
-          setPlayerModalRosterType('male');
-          setPlayerToEdit(null);
-          setIsPlayerModalOpen(true);
-        }}
-        onOpenAddProspect={() => {
-          setProspectToEdit(null);
-          setIsProspectModalOpen(true);
-        }}
-        onOpenAddTrackedPlayer={() => {
-          setTrackedPlayerToEdit(null);
-          setIsAddTrackedModalOpen(true);
-        }}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
         language={language}
@@ -1652,6 +1818,8 @@ export default function App() {
         onChangeCurrency={setCurrency}
         isOpenMobile={isOpenMobileSidebar}
         onCloseMobile={() => setIsOpenMobileSidebar(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
         currentUser={currentUser}
         onLogin={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
@@ -1703,7 +1871,7 @@ export default function App() {
         />
 
         {/* Main Viewport Container */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {currentUser && (accessStatus === 'unauthorized' || accessStatus === 'disabled') ? (
           <div className="max-w-lg mx-auto mt-10 bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-900/60 p-6 sm:p-8 shadow-sm text-center space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
@@ -1923,6 +2091,7 @@ export default function App() {
             }}
             onOpenConversationLog={prospect => setConversationModalProspect(prospect)}
             onSignProspectToRoster={handleSignProspectToRoster}
+            onUpdateProspectStage={handleUpdateProspectStage}
             onOpenAddForeignProspect={() => {
               setForeignProspectToEdit(null);
               setIsForeignProspectModalOpen(true);

@@ -1,12 +1,14 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
-  onSnapshot, 
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
   query,
   getDocs,
-  getDoc
+  getDoc,
+  disableNetwork,
+  enableNetwork
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -40,6 +42,90 @@ function stripUndefined<T>(value: T): T {
   return value;
 }
 
+let writeQuotaPaused = false;
+const WRITE_BACKOFF_TIMEOUT_MS = 10000;
+
+export function isWriteQuotaPaused(): boolean {
+  return writeQuotaPaused;
+}
+
+export function resetWriteQuotaPause(): void {
+  const wasPaused = writeQuotaPaused;
+  writeQuotaPaused = false;
+  if (wasPaused) {
+    enableNetwork(db).catch(() => {});
+  }
+}
+
+export function isQuotaExceededError(error: unknown): boolean {
+  const raw =
+    error instanceof Error
+      ? `${(error as any).code || ''} ${error.message}`
+      : String(error || '');
+  const lower = raw.toLowerCase();
+  return (
+    lower.includes('resource-exhausted') ||
+    lower.includes('quota exceeded') ||
+    lower.includes('quota limit exceeded')
+  );
+}
+
+function pauseForQuota(path: string): never {
+  writeQuotaPaused = true;
+  // Close Firestore's persistent WriteStream immediately so the SDK stops retrying in maximum backoff loops
+  disableNetwork(db).catch(() => {});
+  throw new Error(`Firestore daily quota limit reached (resource-exhausted) at ${path}`);
+}
+
+function assertWriteQuotaAvailable(path: string) {
+  if (writeQuotaPaused) {
+    throw new Error(`Firestore daily quota limit reached (resource-exhausted) at ${path}`);
+  }
+}
+
+async function executeFirestoreWrite<T>(
+  path: string,
+  operationType: OperationType,
+  writeFn: () => Promise<T>
+): Promise<T> {
+  assertWriteQuotaAvailable(path);
+  let timerId: number | undefined;
+  try {
+    if (typeof window !== 'undefined' && navigator.onLine !== false) {
+      return await Promise.race([
+        writeFn(),
+        new Promise<never>((_, reject) => {
+          timerId = window.setTimeout(() => {
+            reject(new Error(`Firestore write stalled — quota or backend backoff (resource-exhausted) at ${path}`));
+          }, WRITE_BACKOFF_TIMEOUT_MS);
+        })
+      ]);
+    }
+    return await writeFn();
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      pauseForQuota(path);
+    }
+    handleFirestoreError(error, operationType, path);
+    throw error;
+  } finally {
+    if (timerId !== undefined && typeof window !== 'undefined') {
+      window.clearTimeout(timerId);
+    }
+  }
+}
+
+function handleSnapshotError(error: unknown, path: string, onError?: (err: any) => void) {
+  if (onError) onError(error);
+  if (isQuotaExceededError(error)) {
+    writeQuotaPaused = true;
+    disableNetwork(db).catch(() => {});
+    console.warn(`Firestore quota reached on listener (${path}). Operating with cached/local state.`);
+    return;
+  }
+  handleFirestoreError(error, OperationType.GET, path);
+}
+
 /**
  * Real-time subscription to user's agency players
  */
@@ -62,8 +148,7 @@ export function subscribeToPlayers(
       onUpdate(players);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -73,13 +158,11 @@ export function subscribeToPlayers(
  */
 export async function savePlayerToFirestore(userId: string, player: Player) {
   const path = `users/${userId}/players/${player.id}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'players', player.id);
-    const dataToSave = stripUndefined({ ...player, userId });
-    await setDoc(docRef, dataToSave, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'players', player.id);
+  const dataToSave = stripUndefined({ ...player, userId });
+  await executeFirestoreWrite(path, OperationType.WRITE, () =>
+    setDoc(docRef, dataToSave, { merge: true })
+  );
 }
 
 /**
@@ -87,12 +170,8 @@ export async function savePlayerToFirestore(userId: string, player: Player) {
  */
 export async function deletePlayerFromFirestore(userId: string, playerId: string) {
   const path = `users/${userId}/players/${playerId}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'players', playerId);
-    await deleteDoc(docRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'players', playerId);
+  await executeFirestoreWrite(path, OperationType.DELETE, () => deleteDoc(docRef));
 }
 
 /**
@@ -100,6 +179,7 @@ export async function deletePlayerFromFirestore(userId: string, playerId: string
  */
 export async function deleteMultiplePlayersFromFirestore(userId: string, playerIds: string[]) {
   for (const id of playerIds) {
+    if (writeQuotaPaused) break;
     await deletePlayerFromFirestore(userId, id);
   }
 }
@@ -126,8 +206,7 @@ export function subscribeToMalePlayers(
       onUpdate(players);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -137,13 +216,11 @@ export function subscribeToMalePlayers(
  */
 export async function saveMalePlayerToFirestore(userId: string, player: Player) {
   const path = `users/${userId}/malePlayers/${player.id}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'malePlayers', player.id);
-    const dataToSave = stripUndefined({ ...player, userId });
-    await setDoc(docRef, dataToSave, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'malePlayers', player.id);
+  const dataToSave = stripUndefined({ ...player, userId });
+  await executeFirestoreWrite(path, OperationType.WRITE, () =>
+    setDoc(docRef, dataToSave, { merge: true })
+  );
 }
 
 /**
@@ -151,12 +228,8 @@ export async function saveMalePlayerToFirestore(userId: string, player: Player) 
  */
 export async function deleteMalePlayerFromFirestore(userId: string, playerId: string) {
   const path = `users/${userId}/malePlayers/${playerId}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'malePlayers', playerId);
-    await deleteDoc(docRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'malePlayers', playerId);
+  await executeFirestoreWrite(path, OperationType.DELETE, () => deleteDoc(docRef));
 }
 
 /**
@@ -164,6 +237,7 @@ export async function deleteMalePlayerFromFirestore(userId: string, playerId: st
  */
 export async function deleteMultipleMalePlayersFromFirestore(userId: string, playerIds: string[]) {
   for (const id of playerIds) {
+    if (writeQuotaPaused) break;
     await deleteMalePlayerFromFirestore(userId, id);
   }
 }
@@ -190,8 +264,7 @@ export function subscribeToProspects(
       onUpdate(prospects);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -201,13 +274,11 @@ export function subscribeToProspects(
  */
 export async function saveProspectToFirestore(userId: string, prospect: TalkProspect) {
   const path = `users/${userId}/prospects/${prospect.id}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'prospects', prospect.id);
-    const dataToSave = { ...prospect, userId };
-    await setDoc(docRef, dataToSave, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'prospects', prospect.id);
+  const dataToSave = stripUndefined({ ...prospect, userId });
+  await executeFirestoreWrite(path, OperationType.WRITE, () =>
+    setDoc(docRef, dataToSave, { merge: true })
+  );
 }
 
 /**
@@ -215,12 +286,8 @@ export async function saveProspectToFirestore(userId: string, prospect: TalkPros
  */
 export async function deleteProspectFromFirestore(userId: string, prospectId: string) {
   const path = `users/${userId}/prospects/${prospectId}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'prospects', prospectId);
-    await deleteDoc(docRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'prospects', prospectId);
+  await executeFirestoreWrite(path, OperationType.DELETE, () => deleteDoc(docRef));
 }
 
 /**
@@ -245,8 +312,7 @@ export function subscribeToTrackedPlayers(
       onUpdate(trackedPlayers);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -256,13 +322,9 @@ export function subscribeToTrackedPlayers(
  */
 export async function saveTrackedPlayerToFirestore(userId: string, trackedPlayer: TrackedPlayer) {
   const path = `users/${userId}/trackedPlayers/${trackedPlayer.id}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'trackedPlayers', trackedPlayer.id);
-    const dataToSave = stripUndefined({ ...trackedPlayer, userId });
-    await setDoc(docRef, dataToSave);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'trackedPlayers', trackedPlayer.id);
+  const dataToSave = stripUndefined({ ...trackedPlayer, userId });
+  await executeFirestoreWrite(path, OperationType.WRITE, () => setDoc(docRef, dataToSave));
 }
 
 /**
@@ -270,12 +332,8 @@ export async function saveTrackedPlayerToFirestore(userId: string, trackedPlayer
  */
 export async function deleteTrackedPlayerFromFirestore(userId: string, trackedPlayerId: string) {
   const path = `users/${userId}/trackedPlayers/${trackedPlayerId}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'trackedPlayers', trackedPlayerId);
-    await deleteDoc(docRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'trackedPlayers', trackedPlayerId);
+  await executeFirestoreWrite(path, OperationType.DELETE, () => deleteDoc(docRef));
 }
 
 /**
@@ -283,6 +341,7 @@ export async function deleteTrackedPlayerFromFirestore(userId: string, trackedPl
  */
 export async function deleteMultipleTrackedPlayersFromFirestore(userId: string, ids: string[]) {
   for (const id of ids) {
+    if (writeQuotaPaused) break;
     await deleteTrackedPlayerFromFirestore(userId, id);
   }
 }
@@ -309,8 +368,7 @@ export function subscribeToForeignProspects(
       onUpdate(items);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -320,13 +378,11 @@ export function subscribeToForeignProspects(
  */
 export async function saveForeignProspectToFirestore(userId: string, prospect: ForeignProspect) {
   const path = `users/${userId}/foreignProspects/${prospect.id}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'foreignProspects', prospect.id);
-    const dataToSave = { ...prospect, userId };
-    await setDoc(docRef, dataToSave, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'foreignProspects', prospect.id);
+  const dataToSave = stripUndefined({ ...prospect, userId });
+  await executeFirestoreWrite(path, OperationType.WRITE, () =>
+    setDoc(docRef, dataToSave, { merge: true })
+  );
 }
 
 /**
@@ -334,12 +390,8 @@ export async function saveForeignProspectToFirestore(userId: string, prospect: F
  */
 export async function deleteForeignProspectFromFirestore(userId: string, prospectId: string) {
   const path = `users/${userId}/foreignProspects/${prospectId}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'foreignProspects', prospectId);
-    await deleteDoc(docRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'foreignProspects', prospectId);
+  await executeFirestoreWrite(path, OperationType.DELETE, () => deleteDoc(docRef));
 }
 
 /**
@@ -361,8 +413,7 @@ export function subscribeToPreferences(
       }
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -375,12 +426,11 @@ export async function savePreferencesToFirestore(
   preferences: { currency: Currency; language: Language; isDarkMode: boolean; nextTransferWindowDate?: string; watchedNextMatchKeys?: string[] }
 ) {
   const path = `users/${userId}/settings/preferences`;
-  try {
-    const docRef = doc(db, 'users', userId, 'settings', 'preferences');
-    await setDoc(docRef, stripUndefined({ ...preferences, userId, updatedAt: new Date().toISOString() }), { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  const docRef = doc(db, 'users', userId, 'settings', 'preferences');
+  const payload = stripUndefined({ ...preferences, userId, updatedAt: new Date().toISOString() });
+  await executeFirestoreWrite(path, OperationType.WRITE, () =>
+    setDoc(docRef, payload, { merge: true })
+  );
 }
 
 /**
@@ -405,8 +455,7 @@ export function subscribeToAgents(
       }
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -416,9 +465,9 @@ export function subscribeToAgents(
  */
 export async function saveAgentsToFirestore(userId: string, agents: AgentProfile[]) {
   const path = `users/${userId}/settings/agents`;
-  try {
-    const docRef = doc(db, 'users', userId, 'settings', 'agents');
-    await setDoc(
+  const docRef = doc(db, 'users', userId, 'settings', 'agents');
+  await executeFirestoreWrite(path, OperationType.WRITE, () =>
+    setDoc(
       docRef,
       {
         agents: agents.map(a => stripUndefined({ ...a })),
@@ -426,15 +475,13 @@ export async function saveAgentsToFirestore(userId: string, agents: AgentProfile
         updatedAt: new Date().toISOString()
       },
       { merge: true }
-    );
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+    )
+  );
 }
 
 /**
- * Smart cloud sync on login: merges any local records into Firestore
- * WITHOUT EVER overwriting or deleting any existing cloud documents.
+ * Smart cloud sync on initial login: seeds Firestore ONLY if the cloud workspace is genuinely empty
+ * (so subsequent page reloads perform zero migration writes).
  */
 export async function syncLocalDataToFirestoreIfEmpty(
   userId: string,
@@ -445,71 +492,73 @@ export async function syncLocalDataToFirestoreIfEmpty(
   localMalePlayers: Player[] = [],
   localAgents: AgentProfile[] = []
 ) {
+  if (writeQuotaPaused) return;
+  const seededKey = `aura_cloud_seeded_${userId}_v1`;
   try {
-    // 1. Players: check existing cloud IDs
-    const playersCol = collection(db, 'users', userId, 'players');
-    const pSnap = await getDocs(playersCol);
-    const existingPlayerIds = new Set(pSnap.docs.map(d => d.id));
+    if (typeof window !== 'undefined' && localStorage.getItem(seededKey) === '1') {
+      return;
+    }
+
+    const [pSnap, mpSnap, prSnap, tSnap, fSnap] = await Promise.all([
+      getDocs(collection(db, 'users', userId, 'players')),
+      getDocs(collection(db, 'users', userId, 'malePlayers')),
+      getDocs(collection(db, 'users', userId, 'prospects')),
+      getDocs(collection(db, 'users', userId, 'trackedPlayers')),
+      getDocs(collection(db, 'users', userId, 'foreignProspects'))
+    ]);
+
+    const cloudHasData =
+      !pSnap.empty || !mpSnap.empty || !prSnap.empty || !tSnap.empty || !fSnap.empty;
+
+    if (cloudHasData) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(seededKey, '1');
+      }
+      return;
+    }
 
     for (const p of localPlayers) {
-      if (!existingPlayerIds.has(p.id)) {
-        await savePlayerToFirestore(userId, p);
-      }
+      if (writeQuotaPaused) return;
+      await savePlayerToFirestore(userId, p);
     }
-
-    // 1b. Male Roster Players: check existing cloud IDs
-    const malePlayersCol = collection(db, 'users', userId, 'malePlayers');
-    const mpSnap = await getDocs(malePlayersCol);
-    const existingMaleIds = new Set(mpSnap.docs.map(d => d.id));
 
     for (const mp of localMalePlayers) {
-      if (!existingMaleIds.has(mp.id)) {
-        await saveMalePlayerToFirestore(userId, mp);
-      }
+      if (writeQuotaPaused) return;
+      await saveMalePlayerToFirestore(userId, mp);
     }
-
-    // 2. Prospects: check existing cloud IDs
-    const prospectsCol = collection(db, 'users', userId, 'prospects');
-    const prSnap = await getDocs(prospectsCol);
-    const existingProspectIds = new Set(prSnap.docs.map(d => d.id));
 
     for (const pr of localProspects) {
-      if (!existingProspectIds.has(pr.id)) {
-        await saveProspectToFirestore(userId, pr);
-      }
+      if (writeQuotaPaused) return;
+      await saveProspectToFirestore(userId, pr);
     }
-
-    // 3. Tracked Players: check existing cloud IDs
-    const trackedCol = collection(db, 'users', userId, 'trackedPlayers');
-    const tSnap = await getDocs(trackedCol);
-    const existingTrackedIds = new Set(tSnap.docs.map(d => d.id));
 
     for (const tp of localTracked) {
-      if (!existingTrackedIds.has(tp.id)) {
-        await saveTrackedPlayerToFirestore(userId, tp);
-      }
+      if (writeQuotaPaused) return;
+      await saveTrackedPlayerToFirestore(userId, tp);
     }
-
-    // 4. Foreign Prospects: check existing cloud IDs
-    const foreignCol = collection(db, 'users', userId, 'foreignProspects');
-    const fSnap = await getDocs(foreignCol);
-    const existingForeignIds = new Set(fSnap.docs.map(d => d.id));
 
     for (const fp of localForeignProspects) {
-      if (!existingForeignIds.has(fp.id)) {
-        await saveForeignProspectToFirestore(userId, fp);
-      }
+      if (writeQuotaPaused) return;
+      await saveForeignProspectToFirestore(userId, fp);
     }
 
-    // 5. Agent Settings: seed if document does not exist yet
-    if (localAgents.length > 0) {
+    if (localAgents.length > 0 && !writeQuotaPaused) {
       const agentsDocRef = doc(db, 'users', userId, 'settings', 'agents');
       const agentsSnap = await getDoc(agentsDocRef);
       if (!agentsSnap.exists()) {
         await saveAgentsToFirestore(userId, localAgents);
       }
     }
+
+    if (!writeQuotaPaused && typeof window !== 'undefined') {
+      localStorage.setItem(seededKey, '1');
+    }
   } catch (err) {
+    if (isQuotaExceededError(err)) {
+      writeQuotaPaused = true;
+      console.warn('Smart cloud synchronization paused because Firestore daily quota was reached.');
+      return;
+    }
     console.error('Error during smart cloud synchronization:', err);
   }
 }
@@ -525,18 +574,29 @@ export type WorkspaceResolutionResult =
  */
 export async function registerWorkspaceDirectory(ownerUid: string) {
   const path = 'workspaceDirectory/primary';
+  if (writeQuotaPaused) return;
   try {
     const docRef = doc(db, 'workspaceDirectory', 'primary');
-    await setDoc(
-      docRef,
-      {
-        ownerUid,
-        agencyName: 'BRIT SPORT GROUP',
-        updatedAt: new Date().toISOString()
-      },
-      { merge: true }
+    const existingSnap = await getDoc(docRef);
+    if (existingSnap.exists() && existingSnap.data()?.ownerUid === ownerUid) {
+      return;
+    }
+    await executeFirestoreWrite(path, OperationType.WRITE, () =>
+      setDoc(
+        docRef,
+        {
+          ownerUid,
+          agencyName: 'BRIT SPORT GROUP',
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      )
     );
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      writeQuotaPaused = true;
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -574,6 +634,7 @@ export function normalizeTeamMemberRule(ownerUid: string, raw: Partial<TeamMembe
  */
 export async function seedDefaultTeamMemberIfMissing(ownerUid: string) {
   const path = `users/${ownerUid}/teamMembers/${DEFAULT_APPROVED_TEAM_UID}`;
+  if (writeQuotaPaused) return;
   try {
     const docRef = doc(db, 'users', ownerUid, 'teamMembers', DEFAULT_APPROVED_TEAM_UID);
     const snap = await getDoc(docRef);
@@ -585,9 +646,15 @@ export async function seedDefaultTeamMemberIfMissing(ownerUid: string) {
         'Regular User',
         ''
       );
-      await setDoc(docRef, stripUndefined(defaultRule));
+      await executeFirestoreWrite(path, OperationType.WRITE, () =>
+        setDoc(docRef, stripUndefined(defaultRule))
+      );
     }
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      writeQuotaPaused = true;
+      return;
+    }
     console.warn(`Could not verify default team member ${path}:`, error);
   }
 }
@@ -663,8 +730,7 @@ export function subscribeToTeamMembers(
       onUpdate(list);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-      if (onError) onError(error);
+      handleSnapshotError(error, path, onError);
     }
   );
 }
@@ -693,8 +759,16 @@ export function subscribeToMyTeamMemberRule(
         );
       }
     },
-    () => {
-      onUpdate(null);
+    (error) => {
+      if (isQuotaExceededError(error)) {
+        writeQuotaPaused = true;
+        disableNetwork(db).catch(() => {});
+        console.warn('Firestore quota reached on team rule listener; retaining active session permissions.');
+        return;
+      }
+      if ((error as any)?.code === 'permission-denied') {
+        onUpdate(null);
+      }
     }
   );
 }
@@ -713,15 +787,12 @@ export async function saveTeamMemberRuleToFirestore(ownerUid: string, member: Te
   }
 
   const path = `users/${ownerUid}/teamMembers/${normalized.uid}`;
-  try {
-    const docRef = doc(db, 'users', ownerUid, 'teamMembers', normalized.uid);
-    const payload = stripUndefined(normalized);
-    await setDoc(docRef, payload, { merge: true });
-    return normalized;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
-  }
+  const docRef = doc(db, 'users', ownerUid, 'teamMembers', normalized.uid);
+  const payload = stripUndefined(normalized);
+  await executeFirestoreWrite(path, OperationType.WRITE, () =>
+    setDoc(docRef, payload, { merge: true })
+  );
+  return normalized;
 }
 
 /**
@@ -730,9 +801,7 @@ export async function saveTeamMemberRuleToFirestore(ownerUid: string, member: Te
 export async function deleteTeamMemberRuleFromFirestore(ownerUid: string, memberUid: string) {
   const cleanUid = memberUid.trim();
   const path = `users/${ownerUid}/teamMembers/${cleanUid}`;
-  try {
-    await deleteDoc(doc(db, 'users', ownerUid, 'teamMembers', cleanUid));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  await executeFirestoreWrite(path, OperationType.DELETE, () =>
+    deleteDoc(doc(db, 'users', ownerUid, 'teamMembers', cleanUid))
+  );
 }

@@ -1,23 +1,23 @@
-import React from 'react';
-import { 
-  Menu, 
-  Search, 
-  UserPlus, 
-  Plus, 
-  Coins, 
-  Globe, 
-  Sun, 
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Menu,
+  UserPlus,
+  Plus,
+  Coins,
+  Globe,
+  Sun,
   Moon,
   LayoutDashboard,
   Users,
   MessageSquare,
-  AlertTriangle,
   Activity,
   Cloud,
-  LogIn,
   Calculator,
   BellRing,
-  UserCog
+  UserCog,
+  ChevronRight,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { Language, Currency, NavigationTab, WorkspacePermissions } from '../types/player';
 import { TRANSLATIONS } from '../translations/translations';
@@ -64,11 +64,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenAddMalePlayer,
   onOpenAddProspect,
   onOpenAddTrackedPlayer,
-  playerCount,
-  malePlayerCount,
-  prospectCount,
-  criticalAlertsCount,
-  trackedCount,
   currency,
   onChangeCurrency,
   language,
@@ -77,12 +72,41 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   setIsDarkMode,
   currentUser,
   onLogin,
-  onLogout,
   isCloudSyncing = false,
   permissions
 }) => {
   const t = TRANSLATIONS[language];
+  const isHe = language === 'he';
   const perms = permissions || FULL_PERMISSIONS;
+
+  const [showNewMenu, setShowNewMenu] = useState(false);
+  const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
+
+  const newMenuRef = useRef<HTMLDivElement>(null);
+  const currencyMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (newMenuRef.current && !newMenuRef.current.contains(event.target as Node)) {
+        setShowNewMenu(false);
+      }
+      if (currencyMenuRef.current && !currencyMenuRef.current.contains(event.target as Node)) {
+        setShowCurrencyMenu(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowNewMenu(false);
+        setShowCurrencyMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const getSectionTitle = () => {
     switch (activeTab) {
@@ -131,36 +155,70 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   const Icon = getSectionIcon();
 
-  const getSectionIconColor = () => {
-    switch (activeTab) {
-      case 'dashboard':
-      case 'compensation':
-        return 'bg-gold-50 dark:bg-gold-950/60 text-gold-700 dark:text-gold-300 border-gold-200 dark:border-gold-700/60';
-      case 'roster':
-      case 'alerts':
-        return 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800/60';
-      case 'male-roster':
-        return 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-800/60';
-      case 'in-talk':
-        return 'bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300 border-violet-200 dark:border-violet-800/60';
-      case 'tracker':
-        return 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60';
-      default:
-        return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+  const createOptions = [
+    {
+      key: 'female' as const,
+      label: t.addPlayer,
+      icon: UserPlus,
+      accentClass: 'text-gold-600 dark:text-gold-400',
+      visible: perms.canCreatePlayers,
+      onClick: onOpenAddPlayer
+    },
+    {
+      key: 'male' as const,
+      label: t.addMalePlayer,
+      icon: UserPlus,
+      accentClass: 'text-blue-600 dark:text-blue-400',
+      visible: perms.canCreatePlayers,
+      onClick: onOpenAddMalePlayer
+    },
+    {
+      key: 'prospect' as const,
+      label: t.addTalkProspect,
+      icon: MessageSquare,
+      accentClass: 'text-violet-600 dark:text-violet-400',
+      visible: perms.canAccessScouting,
+      onClick: onOpenAddProspect
+    },
+    {
+      key: 'tracker' as const,
+      label: t.trackPlayerBtn,
+      icon: Activity,
+      accentClass: 'text-emerald-600 dark:text-emerald-400',
+      visible: perms.canEditTracker,
+      onClick: onOpenAddTrackedPlayer
     }
+  ].filter(option => option.visible);
+
+  const preferredCreateKey =
+    activeTab === 'tracker'
+      ? 'tracker'
+      : activeTab === 'in-talk'
+      ? 'prospect'
+      : activeTab === 'male-roster'
+      ? 'male'
+      : 'female';
+
+  const primaryCreateOption =
+    createOptions.find(opt => opt.key === preferredCreateKey) || createOptions[0] || null;
+
+  const currencyLabels: Record<Currency, string> = {
+    EUR: '€ EUR',
+    USD: '$ USD',
+    ILS: '₪ NIS'
   };
 
   return (
-    <header className="sticky top-0 z-30 w-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
-          
-          {/* Left: Mobile Sidebar Hamburger, Mobile Brand Mark & Current Section Title */}
-          <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 transition-colors">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-16 gap-3">
+          {/* Left: Mobile Sidebar Hamburger, Mobile Brand Mark & CRM Breadcrumb */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
+              type="button"
               onClick={onOpenMobileSidebar}
               aria-label="Open sidebar menu"
-              className="p-2 -ml-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
+              className="p-2 -ml-2 rtl:-ml-0 rtl:-mr-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden shrink-0"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -174,75 +232,115 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2.5">
-              <div className={`p-1.5 rounded-lg border hidden sm:flex ${getSectionIconColor()}`}>
-                <Icon className="w-4 h-4" />
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 min-w-0">
+              <span className="hidden md:inline text-xs font-semibold text-slate-400 dark:text-slate-500 tracking-tight whitespace-nowrap">
+                BRIT CRM
+              </span>
+              <ChevronRight className="hidden md:inline w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0 rtl:rotate-180" />
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="hidden sm:flex p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-gold-600 dark:text-gold-400 shrink-0">
+                  <Icon className="w-3.5 h-3.5" />
+                </span>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                  {getSectionTitle()}
+                </h2>
               </div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
-                {getSectionTitle()}
-              </h2>
-            </div>
+            </nav>
           </div>
 
-          {/* Right: Quick Action context button & quick currency/lang indicators */}
-          <div className="flex items-center gap-2">
-            
-            {/* Quick Context Add Button */}
-            {activeTab === 'tracker' ? (
-              perms.canEditTracker && (
-                <button
-                  onClick={onOpenAddTrackedPlayer}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{t.trackPlayerBtn}</span>
-                </button>
-              )
-            ) : activeTab === 'in-talk' ? (
-              perms.canAccessScouting && (
-                <button
-                  onClick={onOpenAddProspect}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{t.addTalkProspect}</span>
-                </button>
-              )
-            ) : activeTab === 'male-roster' ? (
-              perms.canCreatePlayers && (
-                <button
-                  onClick={onOpenAddMalePlayer}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>{t.addMalePlayer}</span>
-                </button>
-              )
-            ) : (
-              perms.canCreatePlayers && (
-                <button
-                  onClick={onOpenAddPlayer}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-gold-600 hover:bg-gold-700 text-white shadow-xs transition-colors whitespace-nowrap shrink-0"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>{t.addPlayer}</span>
-                </button>
-              )
+          {/* Right: Unified + New Split Action + Interactive Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Unified + New Quick-Create Split Dropdown */}
+            {primaryCreateOption && (
+              <div className="relative" ref={newMenuRef}>
+                <div className="inline-flex items-stretch rounded-lg shadow-2xs overflow-hidden bg-slate-900 dark:bg-gold-600 text-white">
+                  <button
+                    type="button"
+                    onClick={primaryCreateOption.onClick}
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold hover:bg-slate-800 dark:hover:bg-gold-500 transition-colors whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden sm:inline">{primaryCreateOption.label}</span>
+                    <span className="sm:hidden">{isHe ? 'חדש' : 'New'}</span>
+                  </button>
+                  {createOptions.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewMenu(prev => !prev)}
+                      aria-haspopup="menu"
+                      aria-expanded={showNewMenu}
+                      aria-label={isHe ? 'אפשרויות יצירה נוספות' : 'More create actions'}
+                      className="px-1.5 border-l rtl:border-l-0 rtl:border-r border-white/15 hover:bg-slate-800 dark:hover:bg-gold-500 transition-colors flex items-center justify-center"
+                    >
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showNewMenu ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                </div>
+
+                {showNewMenu && createOptions.length > 1 && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 rtl:right-auto rtl:left-0 mt-1.5 w-52 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl py-1.5 z-50"
+                  >
+                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      {isHe ? 'הוספה מהירה' : 'Quick Create'}
+                    </div>
+                    {createOptions.map(option => {
+                      const OptionIcon = option.icon;
+                      const isPrimary = option.key === primaryCreateOption.key;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setShowNewMenu(false);
+                            option.onClick();
+                          }}
+                          className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-semibold transition-colors text-left rtl:text-right ${
+                            isPrimary
+                              ? 'bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <OptionIcon className={`w-3.5 h-3.5 shrink-0 ${option.accentClass}`} />
+                            <span className="truncate">{option.label}</span>
+                          </span>
+                          {isPrimary && (
+                            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 shrink-0">
+                              {isHe ? 'נוכחי' : 'Current'}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
-            {/* Cloud Sync Status Badge */}
+            {/* Cloud Sync Status / Google Sign-In */}
             {currentUser ? (
-              <div 
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50/80 dark:bg-emerald-950/40 text-xs text-emerald-800 dark:text-emerald-300 font-semibold"
+              <div
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800/70 text-xs text-slate-700 dark:text-slate-200 font-semibold"
                 title={`Cloud Synced as ${currentUser.email}`}
               >
-                <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="truncate max-w-[120px]">{currentUser.displayName || currentUser.email?.split('@')[0]}</span>
+                <span className="relative flex h-2 w-2 shrink-0">
+                  {isCloudSyncing && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  )}
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="truncate max-w-[110px]">
+                  {currentUser.displayName || currentUser.email?.split('@')[0]}
+                </span>
               </div>
             ) : onLogin ? (
               <button
+                type="button"
                 onClick={onLogin}
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-2xs"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 title="Connect your Google Account to sync data across all devices"
               >
                 <Cloud className="w-3.5 h-3.5 text-slate-400" />
@@ -250,32 +348,71 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               </button>
             ) : null}
 
-            {/* Quick currency display badge */}
-            <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-semibold font-mono-tabular text-slate-700 dark:text-slate-300">
-              <Coins className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />
-              <span>{currency === 'EUR' ? '€ EUR' : currency === 'USD' ? '$ USD' : '₪ NIS'}</span>
+            {/* Interactive Currency Selector */}
+            <div className="relative hidden sm:block" ref={currencyMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowCurrencyMenu(prev => !prev)}
+                aria-haspopup="menu"
+                aria-expanded={showCurrencyMenu}
+                title={isHe ? 'שנה מטבע' : 'Switch currency'}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-semibold font-mono-tabular text-slate-700 dark:text-slate-200 transition-colors"
+              >
+                <Coins className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400 shrink-0" />
+                <span>{currencyLabels[currency]}</span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
+
+              {showCurrencyMenu && (
+                <div
+                  role="menu"
+                  className="absolute right-0 rtl:right-auto rtl:left-0 mt-1.5 w-32 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg py-1 z-50"
+                >
+                  {(['EUR', 'USD', 'ILS'] as Currency[]).map(curr => (
+                    <button
+                      key={curr}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={currency === curr}
+                      onClick={() => {
+                        onChangeCurrency(curr);
+                        setShowCurrencyMenu(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-mono-tabular transition-colors ${
+                        currency === curr
+                          ? 'bg-gold-50 dark:bg-gold-950/50 text-gold-900 dark:text-gold-200 font-bold'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>{currencyLabels[curr]}</span>
+                      {currency === curr && <Check className="w-3.5 h-3.5 text-gold-600 dark:text-gold-400" />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Language quick switch on mobile/desktop */}
+            {/* Language quick switch */}
             <button
+              type="button"
               onClick={onToggleLanguage}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              title={t.languageSwitch}
             >
-              <Globe className="w-3.5 h-3.5 text-slate-500" />
+              <Globe className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <span>{language === 'he' ? 'EN' : 'עב'}</span>
             </button>
 
             {/* Dark mode toggle */}
             <button
+              type="button"
               onClick={() => setIsDarkMode(!isDarkMode)}
               aria-label="Toggle dark mode"
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
               {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
             </button>
-
           </div>
-
         </div>
       </div>
     </header>
