@@ -1,21 +1,19 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  ShieldCheck, 
-  AlertTriangle, 
-  ExternalLink, 
-  Mail, 
-  Lock, 
-  Sparkles, 
-  CheckCircle2, 
-  ArrowRight,
+import {
+  X,
+  ShieldCheck,
+  AlertTriangle,
+  ExternalLink,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
   RefreshCw,
   Copy,
   Check
 } from 'lucide-react';
 import { Language } from '../types/player';
 import { TRANSLATIONS } from '../translations/translations';
-import firebaseConfig from '../../firebase-applet-config.json';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -48,18 +46,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onResetPassword,
   isSyncing
 }) => {
+  const [activeTab, setActiveTab] = useState<'google' | 'email'>('email');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [localSuccess, setLocalSuccess] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const isHe = language === 'he';
   const t = TRANSLATIONS[language];
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'aura-agency.vercel.app';
-
-  const [activeTab, setActiveTab] = useState<'google' | 'email'>('email');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [localSuccess, setLocalSuccess] = useState<string | null>(null);
 
   const handleCopyDomain = () => {
     navigator.clipboard.writeText(currentHostname);
@@ -144,10 +143,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-base leading-tight">
-                {isHe ? 'חיבור למסד הנתונים בענן (Firebase)' : 'Connect to Firebase Cloud Database'}
+                {isHe ? 'התחברות למערכת BRIT SPORT GROUP' : 'BRIT SPORT GROUP Sign-In'}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isHe ? `פרויקט: ${firebaseConfig.projectId}` : `Project: ${firebaseConfig.projectId}`}
+                {isHe ? 'סביבת עבודה משותפת לצוות הסוכנות' : 'Shared Agency Workspace Access'}
               </p>
             </div>
           </div>
@@ -325,13 +324,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="relative">
                   <Lock className={`w-4 h-4 text-slate-400 absolute top-2.5 ${isHe ? 'right-3' : 'left-3'}`} />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className={`w-full py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden ${isHe ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}
+                    className={`w-full py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden ${isHe ? 'pr-9 pl-9' : 'pl-9 pr-9'}`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? (isHe ? 'הסתר סיסמה' : 'Hide password') : (isHe ? 'הצג סיסמה' : 'Show password')}
+                    className={`absolute top-1.5 p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ${isHe ? 'left-2' : 'right-2'}`}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
               </div>
 
@@ -366,7 +373,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Footer */}
         <div className="p-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 flex items-center justify-between text-xs text-slate-500">
-          <span>{isHe ? 'אבטחת Zero-Trust ב-Firestore' : 'Zero-Trust Firestore Security'}</span>
+          <span>{isHe ? 'גישה מאובטחת ומוצפנת לצוות' : 'Encrypted Agency Session'}</span>
           <button
             onClick={onClose}
             className="py-1 px-3 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors font-semibold"

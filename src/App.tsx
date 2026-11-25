@@ -47,6 +47,7 @@ import { QuickExtendModal } from './components/QuickExtendModal';
 import { PlayerDetailModal } from './components/PlayerDetailModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { AuthModal } from './components/AuthModal';
+import { LoginPortalView } from './components/LoginPortalView';
 import { CheckCircle2, X, ShieldAlert, LogOut, Copy, Check } from 'lucide-react';
 import {
   auth,
@@ -232,6 +233,14 @@ export default function App() {
 
   // Firebase Auth, Workspace RBAC & Cloud Syncing state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  const [hasChosenLocalWorkspace, setHasChosenLocalWorkspace] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('aura_local_guest_v1') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
   const [workspaceUid, setWorkspaceUid] = useState<string | null>(null);
   const [accessStatus, setAccessStatus] = useState<'local' | 'owner' | 'member' | 'disabled' | 'unauthorized'>('local');
@@ -545,6 +554,7 @@ export default function App() {
         lastSavedPersonalPrefsJsonRef.current = null;
         lastRemoteWatchedKeysRef.current = null;
         prevPersonalPrefsTupleRef.current = null;
+        setIsAuthReady(true);
         return;
       }
 
@@ -625,6 +635,7 @@ export default function App() {
         setAccessStatus('unauthorized');
       } finally {
         setIsCloudSyncing(false);
+        setIsAuthReady(true);
       }
     });
 
@@ -877,8 +888,10 @@ export default function App() {
       console.error('Login error:', err);
       const diag = getAuthErrorDiagnostic(err);
       setAuthDiagnostic(diag);
-      setIsAuthModalOpen(true);
-      showToast(language === 'he' ? 'שגיאה בהתחברות ל-Google. נפתח מדריך פתרון.' : 'Failed to sign in with Google. Solution guide opened.');
+      if (hasChosenLocalWorkspace || currentUser) {
+        setIsAuthModalOpen(true);
+        showToast(language === 'he' ? 'שגיאה בהתחברות ל-Google. נפתח מדריך פתרון.' : 'Failed to sign in with Google. Solution guide opened.');
+      }
     } finally {
       setIsCloudSyncing(false);
     }
@@ -904,6 +917,16 @@ export default function App() {
     showToast(language === 'he' ? 'נשלח מייל לאיפוס סיסמה.' : 'Password reset email sent.');
   };
 
+  const handleContinueLocal = () => {
+    setHasChosenLocalWorkspace(true);
+    setAuthDiagnostic(null);
+    try {
+      sessionStorage.setItem('aura_local_guest_v1', 'true');
+    } catch {
+      // Ignore storage failures
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logoutUser();
@@ -912,7 +935,13 @@ export default function App() {
       setAccessStatus('local');
       setMyMemberRule(null);
       setTeamMembers([]);
-      showToast(language === 'he' ? 'התנתקת בהצלחה. האתר פועל כעת במצב מקומי.' : 'Signed out. Operating in local mode.');
+      setHasChosenLocalWorkspace(false);
+      try {
+        sessionStorage.removeItem('aura_local_guest_v1');
+      } catch {
+        // Ignore storage failures
+      }
+      showToast(language === 'he' ? 'התנתקת בהצלחה.' : 'Signed out.');
     } catch (err: any) {
       console.error('Logout error:', err);
     }
@@ -1796,6 +1825,49 @@ export default function App() {
   };
 
   const t = TRANSLATIONS[language];
+
+  if (!isAuthReady && !hasChosenLocalWorkspace) {
+    return (
+      <div
+        dir={language === 'he' ? 'rtl' : 'ltr'}
+        className={`min-h-screen w-full flex flex-col items-center justify-center bg-[#F7F8FA] dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased px-6 ${
+          language === 'he' ? 'font-hebrew' : 'font-sans'
+        }`}
+      >
+        <div className="flex flex-col items-center gap-4">
+          <div className="rounded-xl bg-white px-4 py-2.5 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <img
+              src="/assets/aistudio/Brit_gold_c815fbe0.png"
+              alt="BRIT SPORT GROUP"
+              referrerPolicy="no-referrer"
+              className="h-10 w-auto object-contain"
+            />
+          </div>
+          <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{language === 'he' ? 'טוען סביבת עבודה...' : 'Loading agency workspace...'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser && !hasChosenLocalWorkspace) {
+    return (
+      <LoginPortalView
+        language={language}
+        onToggleLanguage={handleToggleLanguage}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
+        diagnostic={authDiagnostic}
+        onLoginWithGoogle={handleGoogleLogin}
+        onLoginWithEmail={handleEmailLogin}
+        onResetPassword={handleResetPassword}
+        onContinueLocal={handleContinueLocal}
+        isSyncing={isCloudSyncing}
+      />
+    );
+  }
 
   return (
     <div className={`min-h-screen bg-[#F7F8FA] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors antialiased ${language === 'he' ? 'font-hebrew' : ''}`}>
