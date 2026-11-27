@@ -17,6 +17,7 @@ import {
   UserCog,
   PanelLeftClose,
   PanelLeftOpen,
+  CalendarDays,
   X
 } from 'lucide-react';
 import { Language, Currency, NavigationTab, WorkspacePermissions } from '../types/player';
@@ -27,6 +28,7 @@ interface SidebarProps {
   setActiveTab: (tab: NavigationTab) => void;
   playerCount: number;
   malePlayerCount: number;
+  youthMatchesCount?: number;
   prospectCount: number;
   criticalAlertsCount: number;
   upcomingBirthdaysCount?: number;
@@ -65,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   playerCount,
   malePlayerCount,
+  youthMatchesCount,
   prospectCount,
   criticalAlertsCount,
   upcomingBirthdaysCount = 0,
@@ -120,6 +123,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.maleRoster,
       icon: Users,
       count: malePlayerCount,
+      isAlert: false,
+      visible: perms.canViewPlayers
+    },
+    {
+      id: 'youth-matches' as NavigationTab,
+      label: t.youthMatches,
+      icon: CalendarDays,
+      count: youthMatchesCount,
       isAlert: false,
       visible: perms.canViewPlayers
     },

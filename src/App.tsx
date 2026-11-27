@@ -36,6 +36,7 @@ import { AlertsHubView } from './components/AlertsHubView';
 import { AgentSettingsView } from './components/AgentSettingsView';
 import { PlayerTrackerView } from './components/PlayerTrackerView';
 import { TrainingCompensationView } from './components/TrainingCompensationView';
+import { YouthMatchesView } from './components/YouthMatchesView';
 import { AddTrackedPlayerModal } from './components/AddTrackedPlayerModal';
 import { ManualMinutesModal } from './components/ManualMinutesModal';
 import { PlayerModal } from './components/PlayerModal';
@@ -956,6 +957,17 @@ export default function App() {
   const upcomingBirthdaysCount =
     getUpcomingBirthdays(players, 30).length +
     getUpcomingBirthdays(malePlayers, 30).length;
+
+  // Male Youth Roster count (U14-U17) for Sidebar Youth Matches badge
+  const maleYouthU14ToU17Count = useMemo(() => {
+    return malePlayers.filter(p => {
+      if (p.youthCategory === 'U14' || p.youthCategory === 'U15' || p.youthCategory === 'U16' || p.youthCategory === 'U17') {
+        return true;
+      }
+      if (p.youthCategory === 'U19' || p.youthCategory === 'Senior') return false;
+      return typeof p.age === 'number' && p.age >= 12 && p.age <= 17;
+    }).length;
+  }, [malePlayers]);
 
   // Agent settings save handler (Owner only)
   const handleSaveAgents = (updatedAgents: AgentProfile[]) => {
@@ -1878,6 +1890,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         playerCount={players.length}
         malePlayerCount={malePlayers.length}
+        youthMatchesCount={maleYouthU14ToU17Count}
         prospectCount={prospects.length + foreignProspects.length}
         criticalAlertsCount={criticalAlertsCount}
         upcomingBirthdaysCount={upcomingBirthdaysCount}
@@ -2135,6 +2148,18 @@ export default function App() {
             onUpdateYouthCategory={(id, cat) => handleUpdateYouthCategory(id, cat, 'male')}
             language={language}
             currency={currency}
+          />
+        )}
+
+        {activeTab === 'youth-matches' && permissions.canViewPlayers && (
+          <YouthMatchesView
+            malePlayers={malePlayers}
+            onSelectPlayer={(player, rosterType) => {
+              setDetailPlayerRosterType(rosterType);
+              setDetailPlayer(player);
+            }}
+            onNavigateMaleRoster={() => setActiveTab('male-roster')}
+            language={language}
           />
         )}
 

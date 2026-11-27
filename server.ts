@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { lookupNextMatch, isGeminiQuotaLimited } from './lib/nextMatchLookup.ts';
 import type { NextMatchRequestItem } from './lib/nextMatchLookup.ts';
+import { fetchYouthMatchesFromJuniorLeague } from './lib/juniorLeagueMatches.ts';
+import type { YouthMatchRequestPlayer } from './lib/juniorLeagueMatches.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +55,36 @@ async function startServer() {
     } catch (err: any) {
       console.error('Error in POST /api/next-match:', err);
       res.status(500).json({ error: 'Failed to fetch next match schedules from sports websites.' });
+    }
+  });
+
+  app.post('/api/youth-matches', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const rawPlayers = Array.isArray(body.players) ? body.players : [];
+      const forceRefresh = Boolean(body.forceRefresh);
+      const daysAhead = typeof body.daysAhead === 'number' ? body.daysAhead : 7;
+
+      const players: YouthMatchRequestPlayer[] = rawPlayers.slice(0, 120).map((p: any) => ({
+        id: String(p?.id || '').slice(0, 128),
+        name: String(p?.name || '').slice(0, 128),
+        photoUrl: typeof p?.photoUrl === 'string' ? p.photoUrl.slice(0, 512) : undefined,
+        clubName: String(p?.clubName || '').slice(0, 128),
+        league: typeof p?.league === 'string' ? p.league.slice(0, 128) : undefined,
+        position: typeof p?.position === 'string' ? p.position.slice(0, 64) : undefined,
+        age: typeof p?.age === 'number' ? p.age : undefined,
+        youthCategory: typeof p?.youthCategory === 'string' ? (p.youthCategory.slice(0, 16) as any) : undefined,
+      })).filter((p: YouthMatchRequestPlayer) => Boolean(p.id && p.name));
+
+      const result = await fetchYouthMatchesFromJuniorLeague(players, {
+        daysAhead,
+        forceRefresh,
+      });
+
+      res.status(200).json(result);
+    } catch (err: any) {
+      console.error('Error in POST /api/youth-matches:', err);
+      res.status(500).json({ error: 'Failed to load youth matches from JuniorLeague.' });
     }
   });
 

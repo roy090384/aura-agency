@@ -26,7 +26,7 @@ export type YouthCategory = 'Senior' | 'U19' | 'U17' | 'U16' | 'U15' | 'U14';
 export type TrackerCategory = 'U15' | 'U16' | 'U17' | 'U19' | 'Womans';
 export type PlayerGender = 'Female' | 'Male';
 
-export type NavigationTab = 'dashboard' | 'roster' | 'male-roster' | 'in-talk' | 'alerts' | 'tracker' | 'compensation' | 'agent-settings';
+export type NavigationTab = 'dashboard' | 'roster' | 'male-roster' | 'youth-matches' | 'in-talk' | 'alerts' | 'tracker' | 'compensation' | 'agent-settings';
 
 export interface AgentProfile {
   id: string;
@@ -407,3 +407,55 @@ export function buildTeamMemberPreset(
     updatedAt: now,
   };
 }
+
+export type SupportedYouthMatchTier = 'U14' | 'U15' | 'U16' | 'U17';
+
+export interface YouthMatchParticipant {
+  playerId: string;
+  playerName: string;
+  photoUrl?: string;
+  position?: string;
+  clubName: string;
+  youthCategory: SupportedYouthMatchTier;
+  side: 'home' | 'away';
+}
+
+export interface YouthMatchTimelineItem {
+  id: string;
+  tier: SupportedYouthMatchTier;
+  competitionType?: 'league' | 'cup';
+  ageGroupHe: string;
+  leagueName: string;
+  leagueUrl: string;
+  round?: number;
+  roundBoxName?: string;
+  dateTime: string;
+  hasTime: boolean;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  venue?: string;
+  agencySides: ('home' | 'away')[];
+  players: YouthMatchParticipant[];
+}
+
+export interface YouthPlayerCoverage {
+  playerId: string;
+  playerName: string;
+  clubName: string;
+  tier: SupportedYouthMatchTier;
+  matchedTeamNames: string[];
+  upcomingMatchCount: number;
+  reason?: 'no_club' | 'no_team_match' | 'no_fixtures_7d';
+}
+
+export interface YouthMatchesApiResponse {
+  matches: YouthMatchTimelineItem[];
+  coverage: YouthPlayerCoverage[];
+  scannedLeaguesCount: number;
+  relevantClubsCount: number;
+  daysAhead: number;
+  fetchedAt: string;
+}
+

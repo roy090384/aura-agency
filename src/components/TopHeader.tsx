@@ -15,6 +15,7 @@ import {
   Calculator,
   BellRing,
   UserCog,
+  CalendarDays,
   ChevronRight,
   ChevronDown,
   Check
@@ -116,6 +117,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         return t.agencyRoster;
       case 'male-roster':
         return t.maleRoster;
+      case 'youth-matches':
+        return t.youthMatches;
       case 'in-talk':
         return t.inTalkWith;
       case 'alerts':
@@ -138,6 +141,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'roster':
       case 'male-roster':
         return Users;
+      case 'youth-matches':
+        return CalendarDays;
       case 'in-talk':
         return MessageSquare;
       case 'alerts':
@@ -195,7 +200,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       ? 'tracker'
       : activeTab === 'in-talk'
       ? 'prospect'
-      : activeTab === 'male-roster'
+      : activeTab === 'male-roster' || activeTab === 'youth-matches'
       ? 'male'
       : 'female';
 
